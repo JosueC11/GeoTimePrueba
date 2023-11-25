@@ -1,0 +1,136 @@
+﻿@page "/accionPersonallist"
+
+@layout MainLayout
+
+@inject SweetAlertService swal;
+@inject IGeoTimeConnect geoConnect
+@inject LoginState loginState;
+@inject NavigationManager NavigationManager
+
+<div class="card">
+    <div class="card-header">
+        <div class="row">
+            <div class="col">
+                <h3>@Titulo</h3>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+
+        @if (InProcess)
+        {
+            <Spinner></Spinner>
+        }
+
+        <Grid @ref="grid" TItem="AccionPersonalExt" class="Color-table custom-table table table-hover table-bordered table-striped "
+              DataProvider="modelDataProvider" AllowFiltering="true" Responsive="true"
+              AllowPaging="false" PageSize="10" PageSizeSelectorVisible="false" PageSizeSelectorItems="@(new int[] {10,50,100,200,500})"
+              PaginationItemsTextFormat="{0} - {1} of {2} items" ItemsPerPageText=""
+              HeaderRowCssClass="custom-header border-bottom-0"
+              FiltersRowCssClass="custom-filter text-white border-bottom-0">
+
+            <GridColumn TItem="AccionPersonalExt" HeaderText="Id Registro" PropertyName="IdRegistro" TextAlignment="Alignment.Center">
+                @context.IdRegistro
+            </GridColumn>
+            <GridColumn TItem="AccionPersonalExt" HeaderText="Incidencia" PropertyName="Codigo" TextAlignment="Alignment.Center" FilterTextboxWidth="60">
+                @context.Codigo
+            </GridColumn>
+            <GridColumn TItem="AccionPersonalExt" HeaderText="Descripcion de Incidencia" PropertyName="IdIncidencia"
+                        TextAlignment="Alignment.Center" FilterTextboxWidth="150">
+                @context.DescIncidencia
+            </GridColumn>
+            <GridColumn TItem="AccionPersonalExt" HeaderText="Inicio" PropertyName="InicioDO" TextAlignment="Alignment.Center" FilterTextboxWidth="140">
+                @context.InicioDO
+            </GridColumn>
+            <GridColumn TItem="AccionPersonalExt" HeaderText="Fin" PropertyName="FinDO" TextAlignment="Alignment.Center" FilterTextboxWidth="140">
+                @context.FinDO
+            </GridColumn>
+            <GridColumn TItem="AccionPersonalExt" HeaderText="Comentario" PropertyName="Comentario"
+                        TextAlignment="Alignment.Center" FilterTextboxWidth="150">
+                @context.Comentario
+            </GridColumn>
+            <GridColumn TItem="AccionPersonalExt" HeaderText="Seleccionar" PropertyName="selec" Filterable="false" >
+                @if (context.Estado == 'N')
+                {
+                    <Button Color="ButtonColor.Secondary" @onclick="@((e)=> OnSelect(e, @context.IdRegistro))" Class="btn btn-Secondary rounded-circle">
+                        <Icon Name="IconName.PencilFill" Size="IconSize.x5" />
+                    </Button>
+                }
+            </GridColumn>
+
+        </Grid>
+
+    </div>
+</div>
+
+
+@code {
+
+    public class AccionPersonalExt : cAccionPersonal
+    {
+        public string? DescIncidencia { get; set; }
+        public string? Codigo { get; set; }
+        public DateOnly InicioDO { get; set; }
+        public DateOnly FinDO { get; set; }
+    }
+
+    BlazorBootstrap.Grid<AccionPersonalExt> grid;
+    private IEnumerable<AccionPersonalExt> accionesPeriodo;
+    private string Titulo = "Acciones del Periodo";
+    private bool InProcess = true;
+
+    private async Task<GridDataProviderResult<AccionPersonalExt>> modelDataProvider(GridDataProviderRequest<AccionPersonalExt> request)
+    {
+
+        if (accionesPeriodo is null) // pull sitios only one time for client-side filtering, sorting, and paging
+            accionesPeriodo = await GetAccionesPeriodo(); // call a service or an API to pull the sitios
+
+
+        return await Task.FromResult(request.ApplyTo(accionesPeriodo));
+    }
+
+    private async Task<IEnumerable<AccionPersonalExt>> GetAccionesPeriodo()
+    {
+
+        List<AccionPersonalExt> listAcciones = new();
+
+        try
+        {
+            var accionesPersonal = await geoConnect.GetAccionPersonalPorPeriodo(loginState.Empleado.IdNumero, DateTime.Now.ToString("yyyyMMdd"), loginState.Empleado.IdPlanilla);
+            var incidencias = await geoConnect.GetIncidencia();
+
+            var acciones = (from ap in accionesPersonal
+                            join inc in incidencias on ap.IdIncidencia equals inc.Id
+                            select new AccionPersonalExt
+                            {
+                                IdRegistro = ap.IdRegistro,
+                                Codigo = inc.Codigo,
+                                DescIncidencia = inc.Descripcion,
+                                Inicio = ap.Inicio,
+                                Fin = ap.Fin,
+                                InicioDO = DateOnly.FromDateTime(ap.Inicio),
+                                FinDO = DateOnly.FromDateTime(ap.Fin),
+                                Comentario = ap.Comentario,
+                                Estado = ap.Estado,
+                                Dias = ap.Dias
+                            }).ToList();
+
+            if (acciones.Count > 0)
+                listAcciones = acciones;
+        }
+        catch(Exception e)
+        {
+            await swal.FireAsync("Error", "Error al cargar las marcas." + e.Message, SweetAlertIcon.Info);
+        }
+
+        InProcess = false;
+        StateHasChanged();
+        return listAcciones;
+    }
+
+    protected async void OnSelect(MouseEventArgs mouseEventArgs, long id)
+    {
+        NavigationManager.NavigateTo("/accionpersonaldetalle/" + id + "/2");
+
+    }
+}

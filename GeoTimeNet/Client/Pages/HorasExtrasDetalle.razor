@@ -1,0 +1,304 @@
+﻿@page "/horasextrasdetalle"
+@page "/horasextrasdetalle/{Id:long}/{Modo:int}"
+@layout MainLayout
+
+@inject SweetAlertService swal;
+@inject IGeoTimeConnect geoConnect
+@inject NavigationManager NavigationManager
+@inject LoginState loginState;
+
+<div class="card">
+
+    <PageReturn Titulo="@Titulo" UrlRetorno="@UrlRetorno" />
+
+    <div class="card-body">
+
+        @if (InProcess)
+        {
+            <Spinner></Spinner>
+        }
+
+
+        @if (marcaExtraApb is not null)
+        {
+            <EditForm Model="@marcaExtraApb" OnSubmit="GuardarCambios">
+               
+
+                <div class="input-group rounded-border">
+                    <div class="row">
+                        <label class="align-content-between lbl-xs">
+                            Fecha
+                        </label>
+                    </div>
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <DateInput TValue="DateOnly" EnableMinMax="true" Min="@minDate" Max="@maxDate"
+                            class="form-control br8 rounded-border"
+                            placeholder="Fecha" id="fecha"
+                            Disabled="@soloLecturaAdd"
+                        @bind-Value="fecha" />
+                    </div>
+                </div>
+
+                <div class="input-group rounded-border">
+                    <div class="row">
+                        <label class="align-content-between lbl-xs">
+                            Hora de Inicio
+                        </label>
+                    </div>
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <TimeInput TValue="TimeOnly" class="form-control br8 rounded-border"
+                                   maxlength="5"
+                                   placeholder="Hora" id="Hora"
+                                   Disabled="@soloLectura"
+                        @bind-Value="hora" @ref="txtHora" />
+                    </div>
+                </div>
+
+                <div class="input-group rounded-border">
+                    <div class="row">
+                        <label class="align-content-between lbl-xs">
+                            Cantidad de Horas
+                        </label>
+                    </div>
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <TimeInput TValue="TimeOnly" class="form-control br8 rounded-border"
+                                   maxlength="5"
+                                   placeholder="Cantidad" id="cantidad"
+                                   Disabled="@soloLectura"
+                        @bind-Value="cantidad" @ref="txtCantidad" />
+                    </div>                    
+                </div>               
+
+                <div class="input-group rounded-border">
+                    <div class="row">
+                        <label class="align-content-between lbl-xs">
+                            Centro Costo
+                        </label>
+                    </div>                    
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <InputSelect class="form-control form-control selectpicker show-menu-arrow "
+                                     data-live-search="true"
+                                     style="font-size:medium"
+                                     disabled="@soloLectura"
+                        @bind-Value=marcaExtraApb.ccosto>
+
+                            @if (listCentroCosto.Count() > 0)
+                            {
+                                <option value="0">Seleccione Centro de Costo</option>
+                                @foreach (var item in listCentroCosto)
+                                {
+                                    <option value=@item.IdCCosto>@item.IdCCosto - @item.Descripcion</option>
+                                }
+                            }
+                        </InputSelect>
+                    </div>
+                </div>
+
+                <div class="input-group rounded-border">
+                    <div class="row">
+                        <label class="align-content-between lbl-xs">
+                            Comentarios
+                        </label>
+                    </div>
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <InputText class="form-control br8 rounded-border"
+                                   maxlength="1024"
+                                   placeholder="Comentarios" id="Comentarios"
+                                   Disabled="@soloLectura"
+                        @bind-Value="marcaExtraApb.comentario" @ref="txtComentario" />
+                    </div>
+                </div>
+
+                <br />
+                <div class="row">
+                    <div class="col">
+                        @if (Modo == 3)
+                        {
+                            <button type="submit" class="btn btn-danger w-100">
+                                Eliminar
+                                <Icon Name="IconName.Trash" />
+                            </button>
+                        }
+                        else
+                        {
+                            <button type="submit" class="btn btn-primary w-100">
+                                Aceptar
+                                <Icon Name="IconName.Save" />
+                            </button>
+                        }
+                    </div>
+                </div>
+                <br />
+
+            </EditForm>
+
+                
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public long Id { get; set; }
+    [Parameter] public int Modo { get; set; }
+
+    private string Titulo = "Solicitud de Horas Extra";
+    private string UrlRetorno = "/horasextralist";
+    private InputText? txtComentario = new();
+    private TimeInput<TimeOnly> txtCantidad = new();
+    private TimeInput<TimeOnly> txtHora = new();
+    private DateOnly fecha;
+    private TimeOnly hora = new TimeOnly(00, 00);
+    private TimeOnly cantidad = new TimeOnly(00, 00);
+    private List<cCentroCosto> listCentroCosto = new();
+    private bool InProcess = true;
+    private bool soloLectura = false;
+    private bool soloLecturaAdd = false;
+    private bool habilitarMaxMin = false;
+    cMarcaExtraApb marcaExtraApb = new();
+
+    private DateOnly date1, minDate, maxDate;
+    private DateTime date = DateTime.Now.AddMonths(3);
+    private DateTime min = DateTime.Now.AddMonths(-1);
+    private DateTime max = DateTime.Now.AddYears(1);
+
+    protected override async Task OnInitializedAsync()
+    {
+        date1 = DateOnly.FromDateTime(date);
+
+        soloLectura = Modo == 3;
+        soloLecturaAdd = Modo != 1;
+        habilitarMaxMin = Modo == 1;
+        try
+        {
+            var cecos = await geoConnect.GetCentroCosto();
+            if (cecos is not null)
+            {
+                listCentroCosto = cecos.Where(e => e.Distribuye == 'T').ToList();
+            }
+            //Modos= 1:Insertar 2:Actualizar 3:Borrar 0:Consulta
+            if (Modo != 1)
+            {
+                marcaExtraApb = await geoConnect.GetMarcaExtraApb(Id);
+                fecha = DateOnly.FromDateTime(marcaExtraApb.fecha); 
+                minDate = fecha;
+                maxDate = fecha.AddMonths(1);
+
+                hora = new TimeOnly(int.Parse(marcaExtraApb.hora.Substring(0, 2)), int.Parse(marcaExtraApb.hora.Substring(3, 2)));
+                cantidad = new TimeOnly(int.Parse(marcaExtraApb.cantidad.Substring(0, 2)), int.Parse(marcaExtraApb.cantidad.Substring(3, 2)));
+            }            
+            else
+            {
+                fecha = DateOnly.FromDateTime(DateTime.Now);
+                minDate = fecha;
+                maxDate = fecha.AddMonths(2);
+
+                marcaExtraApb.idregistro = 0;
+            }
+
+        }
+        catch (Exception e)
+        {
+
+        }
+
+        InProcess = false;
+        StateHasChanged();
+    }
+
+    private async Task GuardarCambios()
+    {
+        InProcess = true;
+        try
+        {
+            if (await Validaciones())
+            {
+                marcaExtraApb.fecha = DateTime.Parse($"{fecha.Year}-{fecha.Month}-{fecha.Day}");
+                marcaExtraApb.estado = 'N';
+                marcaExtraApb.idnumero = loginState.Empleado.IdNumero;
+                marcaExtraApb.idplanilla = loginState.Empleado.IdPlanilla;
+                string stCantExtra = $"{Utiles.Right("00" + cantidad.Hour.ToString(), 2)}:{Utiles.Right("00" + cantidad.Minute.ToString(), 2)}";
+                marcaExtraApb.cantidad = stCantExtra;
+                marcaExtraApb.estado = 'A';
+                marcaExtraApb.usuario = loginState.Empleado.IdNumero;
+                string strHoursLab = $"{Utiles.Right("00" + hora.Hour.ToString(), 2)}:{Utiles.Right("00" + hora.Minute.ToString(), 2)}";
+                marcaExtraApb.hora = strHoursLab;
+                List<cMarcaExtraApb> listaMarcasApb = new();
+                if (marcaExtraApb.ccosto == "0")
+                    marcaExtraApb.ccosto = null;
+
+
+                listaMarcasApb.Add(marcaExtraApb);
+
+                EventResponse respuesta;
+
+
+                respuesta = await geoConnect.Post("MarcaExtraApb", listaMarcasApb);
+
+
+                if (respuesta.Id == "0")
+                {
+                    NavigationManager.NavigateTo(UrlRetorno);
+                }
+                else
+                {
+                    await swal.FireAsync("Error", respuesta.Descripcion, SweetAlertIcon.Error);
+                }
+            }
+
+
+        }
+        catch (Exception e)
+        {
+            await swal.FireAsync("Error", "Ocurrió un error al ejecutar el proceso. Detalle de Error: " + e.Message, SweetAlertIcon.Error);
+        }
+        finally
+        {
+            InProcess = false;
+        }
+    }
+
+    private async Task<bool> Validaciones()
+    {
+        DateTime fechaReg = DateTime.Parse($"{fecha.Year}-{fecha.Month}-{fecha.Day}");
+        if (Modo == 1)
+        {            
+            DateTime hoy = DateTime.Parse($"{DateTime.Now.Year}-{DateTime.Now.Month}-{DateTime.Now.Day}");
+            if (fechaReg < hoy)
+            {
+                await swal.FireAsync("Atención", "No se puede registrar horas extras para días anteriores a hoy. Por favor verifique.", SweetAlertIcon.Info);
+                return false;
+            }
+
+            var hayMarcasExtra = await geoConnect.GetMarcaExtraApb(loginState.Empleado.IdNumero, fechaReg.ToString("yyyyMMdd"), loginState.Empleado.IdPlanilla, false);
+
+            if (hayMarcasExtra.Count()>0)
+            {
+                await swal.FireAsync("Atención", $"Ya existe una solicitud de horas extras para el dia {fechaReg.ToString("dd-MM-yyyy")}. Por favor verifique.", SweetAlertIcon.Info);
+                return false;
+            }
+        }
+
+        
+
+        if (cantidad.Hour == 0 && cantidad.Minute == 0)
+        {
+            await swal.FireAsync("Atención", "Debe indicar la cantidad de Horas Extra.", SweetAlertIcon.Info);
+            return false;
+        }
+
+        if (hora.Hour == 0 && hora.Minute==0)
+        {
+            await swal.FireAsync("Atención", "Debe indicar la hora.", SweetAlertIcon.Info);
+            return false;
+        }
+
+        if (marcaExtraApb.comentario == "" || marcaExtraApb.comentario is null)
+        {
+            await Utiles.SetFocus(txtComentario);
+            await swal.FireAsync("Atención", "Debe indicar un comentario.", SweetAlertIcon.Info);
+            return false;
+        }
+        return true;
+    }
+
+}

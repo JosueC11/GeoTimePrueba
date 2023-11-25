@@ -1,0 +1,142 @@
+﻿@page "/portalopcionlist"
+
+@layout MainLayout
+
+
+@inject SweetAlertService swal;
+@inject IGeoTimeConnect geoConnect
+@inject NavigationManager NavigationManager
+@inject LoginState loginState;
+
+
+<div class="card">
+    <PageReturn Titulo="@Titulo" />
+
+    <div class="card-body">
+
+        @if (InProcess)
+        {
+            <Spinner ></Spinner>
+        }
+
+        <Grid @ref="grid" TItem="PortalOpcionExt" class="Color-table custom-table table table-hover table-bordered table-striped "
+              DataProvider="modelDataProvider" AllowFiltering="true" Responsive="true"
+              AllowPaging="false" PageSize="10" PageSizeSelectorVisible="false" PageSizeSelectorItems="@(new int[] {10,50,100,200,500})" 
+              PaginationItemsTextFormat="{0} - {1} of {2} items" ItemsPerPageText=""
+              HeaderRowCssClass="custom-header border-bottom-0"
+              FiltersRowCssClass="custom-filter text-white border-bottom-0">
+
+            <GridColumn TItem="PortalOpcionExt" HeaderText="Habilitar" PropertyName="Habilitar" TextAlignment="Alignment.Center" FilterTextboxWidth="20">
+                <Switch @bind-Value="context.Habilitar" Reverse="true" @onclick="@((e)=>OnClickHabilitar(e,context))" Disabled="context.PRINCIPAL" />
+            </GridColumn>
+            <GridColumn TItem="PortalOpcionExt" HeaderText="Opción de Sistema" PropertyName="MENUTEXT" TextAlignment="Alignment.Start">
+                <Icon Name="@context.Icono"></Icon> &nbsp; @context.MENUTEXT 
+            </GridColumn>
+        </Grid>
+    </div>
+</div>
+
+@code {
+    /*@* " *@ */
+    BlazorBootstrap.Grid<PortalOpcionExt> grid;
+    private IEnumerable<PortalOpcionExt> portalOpcion;
+    private List<PortalOpcionExt> listPortalOpcion = new();
+    private string Titulo = "Opciones del Portal";
+    private bool InProcess = true;
+
+    public class PortalOpcionExt : cPortal_Opcion
+    {
+        public bool Habilitar { get; set; }
+        public IconName Icono { get; set; }
+    }
+
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+    private async Task<GridDataProviderResult<PortalOpcionExt>> modelDataProvider(GridDataProviderRequest<PortalOpcionExt> request)
+    {
+        if (portalOpcion is null) // pull sitios only one time for client-side filtering, sorting, and paging
+            portalOpcion = await GetOpcionesPortal(); // call a service or an API to pull the sitios
+
+
+        return await Task.FromResult(request.ApplyTo(portalOpcion));
+    }
+
+
+    private async Task<IEnumerable<PortalOpcionExt>> GetOpcionesPortal()
+    {
+        IEnumerable<PortalOpcionExt> opcionesPortal;
+        try
+        {
+            var licSistema = await geoConnect.GetPortalConfig();
+            string[] listOpciones = new string[] { "0" };
+
+            if (licSistema is not null)
+            {
+                listOpciones = licSistema.DATA_01.Split(",");
+            }
+
+            var opciones = from e in await geoConnect.GetPortalOpcion()
+                           select new PortalOpcionExt
+                               {
+                                   ID = e.ID,
+                                   PRINCIPAL = e.PRINCIPAL,
+                                   HREF = e.HREF,
+                                   ICONID = e.ICONID,
+                                   MENUTEXT = e.MENUTEXT,
+                                   PARENTID = e.PARENTID,
+                                   Icono = (IconName)e.ICONID,
+                                   Habilitar = listOpciones.Contains(e.ID),
+                               };
+            opcionesPortal = opciones;
+            listPortalOpcion = opciones.ToList();
+
+        }
+        catch (Exception e)
+        {
+            opcionesPortal = Enumerable.Empty<PortalOpcionExt>();
+            await swal.FireAsync("Error", "Error al cargar los registros de horas extra.", SweetAlertIcon.Info);
+        }
+
+        InProcess = false;
+        StateHasChanged();
+        return opcionesPortal;
+    }
+
+    private async Task OnClickHabilitar(MouseEventArgs e, PortalOpcionExt opcion)
+    {
+
+        var itemOpcion = portalOpcion.Where(x => x.ID == opcion.ID).FirstOrDefault();
+
+        listPortalOpcion.Where(x => x.ID == opcion.ID).ToList()
+            .ForEach(x => x.Habilitar = !opcion.Habilitar);
+
+        string strHabilitar = "";
+        foreach (var pOpcion in listPortalOpcion)
+        {
+            if (pOpcion.Habilitar)
+                strHabilitar = $"{strHabilitar},{pOpcion.ID}";
+        }
+        if (strHabilitar != "")
+            strHabilitar = strHabilitar.Substring(1,strHabilitar.Length-1);
+
+        cPortal_Config pc = await geoConnect.GetPortalConfig();
+
+        pc.DATA_01 = strHabilitar;
+
+        EventResponse respuesta;
+        respuesta = await geoConnect.Post("PortalConfig", pc);
+
+        if (respuesta.Id != "0")
+        {
+            await swal.FireAsync("Error", respuesta.Descripcion, SweetAlertIcon.Error);
+        }
+    }
+
+ 
+ 
+
+}

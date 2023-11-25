@@ -1,0 +1,398 @@
+﻿@page "/programacionlist"
+
+@layout MainLayout
+@using System.Globalization
+
+@inject SweetAlertService swal;
+@inject IGeoTimeConnect geoConnect
+@inject NavigationManager NavigationManager
+@inject LoginState loginState;
+
+<style>
+    .columna-inicial{
+        position: sticky;
+        left: 0px;
+        width: 300px;
+        min-width: 300px;
+        white-space: nowrap;
+    }
+
+    .columna-adicional{
+        width: 150px;
+        min-width: 150px;
+        white-space: nowrap
+    }
+
+    table-scrollDiv {
+        max-height: 200vh;
+        max-width: 100%;
+        overflow: auto;
+    }
+
+    .table-scrollDiv {
+        max-height: var(--max-height);
+        max-width: 100%;
+        overflow: auto;
+    }
+
+</style>
+
+<div class="card">
+    <div class="card-header">
+        <div class="row">
+            <div class="col">
+                <h3>@Titulo</h3>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+
+        @if (InProcess)
+        {
+            <Spinner ></Spinner>
+        }
+
+        @if (marcaMovTurnos is not null){
+            <div class="table-scrollDiv" style="--max-height:100vh">
+                <table class="table table-sm table-bordered table-hover table-striped">
+                    <thead class="custom-header sticky-top">
+                        <tr>
+                            <th class="columna-inicial text-center bg-secondary">
+                                Programación
+                            </th>
+
+                            @foreach (var dia in listDias)
+                            {
+                                CultureInfo ci = new CultureInfo("Es-Es");
+                                string diaDelaSemana = ci.DateTimeFormat.GetDayName(dia.DayOfWeek);
+
+                                <th class="columna-adicional text-center custom-header w-100">
+                                    @diaDelaSemana
+                                </th>
+
+                            }
+                        </tr>
+                        <tr>
+                            <th class="columna-inicial text-center bg-secondary">
+                                Nombre de Colaborador
+                            </th>
+
+                            @foreach (var dia in listDias)
+                            {
+                                <th class="columna-adicional text-center custom-header w-100">
+                                    @dia.ToString("dd-MM-yyyy")
+                                </th>
+
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var empleado in listEmpleados)
+                        {
+                            <tr>
+                                <td class="columna-inicial text-left bg-primary text-white">
+                                    @empleado - @GetEmpleado(empleado)
+                                </td>
+
+                                @foreach (var dia in listDias)
+                                {
+                                    string desturno = GetTurno(empleado, dia);
+                                    int turnoid = GetTurnoId(empleado, dia);
+
+                                    <td class="text-center" style="background-color:@GetColorTurno(turnoid)">
+                                        @desturno&nbsp;
+                                        @if (GetMarcasProgramadas(dia) > 0)
+                                        {
+                                            @if (!GetEmpleadoAsiste(empleado, dia))
+                                            {
+                                                <Icon Name="IconName.PersonFillX" Size="IconSize.x5" Color="IconColor.Danger" />
+                                            }
+                                        }
+                                        
+                                    </td>
+
+                                }
+                            </tr>
+                        }
+                        <tr>
+                            <td class="columna-inicial text-center bg-secondary text-white">
+                                Total Programado
+                            </td>
+
+                            @foreach (var dia in listDias)
+                            {
+                                <td class="columna-adicional text-center text-white w-100" style="background-color:#2192FF">
+                                    @GetMarcasProgramadas(dia)
+                                </td>
+                            }
+                        </tr>
+                        <tr>
+                            <td class="columna-inicial text-center bg-secondary text-white">
+                                Total Asistencia
+                            </td>
+
+                            @foreach (var dia in listDias)
+                            {
+                                <td class="columna-adicional text-center text-black w-100 text-white" style="background-color:steelblue">
+                                    @GetMarcasAsistencia(dia)
+                                </td>
+
+                            }
+                        </tr>
+                        <tr>
+                            <td class="columna-inicial text-center bg-secondary text-white">
+                                Estado
+                            </td>
+
+                            @foreach (var dia in listDias)
+                            {
+                                @if (GetMarcasProgramadas(dia) == GetMarcasAsistencia(dia))
+                                {
+                                    <td class="columna-adicional text-center text-white w-100" style="background-color:chartreuse">
+                                        <Icon Name="IconName.PersonCheck" Size="IconSize.x4" />
+                                    </td>
+                                }
+                                else
+                                {
+                                    <td class="columna-adicional text-center text-white w-100" style="background-color:red">
+                                        <Icon Name="IconName.PersonSlash" Size="IconSize.x4" />
+                                    </td>
+                                }
+                                
+
+                            }
+                        </tr>
+                    </tbody>
+
+                </table>
+
+            </div>
+            
+        }
+
+       
+                
+    </div>
+</div>
+
+@code {
+
+
+    private IEnumerable<MarcaMovturnoExt>? marcaMovTurnos;
+    private string Titulo = "Estado de la Programación";
+    private bool InProcess = true;
+
+    public class MarcaMovturnoExt:cMarcaMovTurno{
+        public DateOnly FechaDo { get; set; }
+        public string NombreEmpleado { get; set; }
+        public string DescTurno { get; set; }
+        public string HEntra { get; set; }
+        public string HSale { get; set; }
+        public string TipoTurno { get; set; }
+    }
+
+    public class MarcaMovTurnoProgramadas 
+    {
+        public DateOnly FechaDo { get; set; }
+        public int CantProgramado { get; set; }
+        public int CantAsistencia { get; set; }
+    }
+
+    List<MarcaMovTurnoProgramadas> listMarcasProgramadas = new();
+
+    string[] colors = new string[]
+    {
+        "#78ECFF", //azul
+        "#62F733", //verde
+        "#EBEBEB", //gris2
+        "#FFCCF9", //rosado
+        "#5EFCEE", //celeste
+        "#51FFCF", //verde2
+        "#E8EDFF", //gris
+        "#FEFFB1", //amarillo
+        "#FFE897", //anaranjado
+        "#E4FFD1", //verde3,
+
+    };
+
+    public class TurnoColor
+    {
+        public int Turno { get; set; }
+        public string Color { get; set; }
+    }
+    List<TurnoColor> listTurnosColor = new();
+
+    public List<string> listEmpleados = new();
+    public List<DateOnly> listDias = new();
+    public IEnumerable<cMarcaProceso> listMarcasProceso;
+
+    protected override async Task OnInitializedAsync()
+    {
+        marcaMovTurnos = await GetMarcasMovTurnos();
+        StateHasChanged();
+    }
+
+    private async Task<IEnumerable<MarcaMovturnoExt>> GetMarcasMovTurnos()
+    {
+
+        List<MarcaMovturnoExt> marcaMovTurnoList = new();
+
+        try
+        {
+            var usuario = await geoConnect.GetPhUsuario(loginState.Empleado.IdNumero);
+
+            if (usuario is not null)
+            {
+                var marcasMovT = await geoConnect.GetMarcaMovTurnoByGrupo(DateTime.Now.ToString("yyyyMMdd"),usuario.GRUPOS);
+                var empleados = await geoConnect.GetEmpleado();
+                var turnos = await geoConnect.GetTurno();
+
+                marcaMovTurnoList = (from m in marcasMovT
+                                     join e in empleados on new { idnumero = m.idnumero, idplanilla = m.idplanilla } equals new { idnumero = e.IdNumero, idplanilla = e.IdPlanilla }
+                                     join t in turnos on m.turno equals t.IdTurno
+                                     select new MarcaMovturnoExt
+                                     {
+                                         idregistro = m.idregistro,
+                                         idnumero = m.idnumero,
+                                         NombreEmpleado = e.Nombre,
+                                         idplanilla = m.idplanilla,
+                                         estado = m.estado,
+                                         turno = m.turno,
+                                         DescTurno = t.Descripcion,
+                                         HEntra=t.HEntra,
+                                         HSale=t.HSale,
+                                         FechaDo = DateOnly.FromDateTime(m.fecha),
+                                         TipoTurno = t.Tipo,
+                                     }).ToList();
+
+                listDias = (from m in marcaMovTurnoList
+                            select m.FechaDo)
+                            .Distinct()
+                            .OrderBy(e=>e.Year).ThenBy(e=>e.Month).ThenBy(e=>e.Day)
+                            .ToList();
+
+                listEmpleados = (from m in marcaMovTurnoList
+                                 select m.idnumero).Distinct().ToList();
+
+                listMarcasProceso = await geoConnect.GetMarcaProceso(DateTime.Now.ToString("yyyyMMdd"));
+
+                listMarcasProceso = listMarcasProceso.Where(e => listEmpleados.Contains(e.idnumero)).ToList();
+
+                var turnosUnicos = (from m in marcaMovTurnoList
+                                    select m.turno).Distinct().ToList();
+                int i = 0;
+
+                foreach (var item in turnosUnicos)
+                {
+                    TurnoColor tc = new TurnoColor
+                        {
+                            Turno = item,
+                            Color = colors[i],
+                        };
+                    listTurnosColor.Add(tc);
+                    i++;
+                }
+
+                foreach(var dia in listDias)
+                {
+
+                    var mmt=marcaMovTurnoList.Where(e => e.FechaDo == dia && e.TipoTurno!="E").ToList();
+                    var mpt = listMarcasProceso.Where(e => DateOnly.FromDateTime(e.fecha_entra) == dia && e.hora_entra!="00:00");
+
+                    MarcaMovTurnoProgramadas marcaProg = new();
+                    marcaProg.FechaDo = dia;
+                    marcaProg.CantProgramado = 0;
+                    marcaProg.CantAsistencia = 0;
+                    if (mmt is not null)
+                        marcaProg.CantProgramado = mmt.Count();
+
+                    if (mpt is not null)
+                        marcaProg.CantAsistencia = mpt.Count();
+
+
+                    listMarcasProgramadas.Add(marcaProg);
+                }
+            }
+            else
+            {
+                await swal.FireAsync("Atención", "No tienes acceso a utilizar esta opción.", SweetAlertIcon.Info);
+                NavigationManager.NavigateTo("/Principal");
+            }
+
+        }
+        catch (Exception e)
+        {
+            await swal.FireAsync("Error", "Error al cargar los registros de la programación.", SweetAlertIcon.Info);
+        }
+
+        InProcess = false;
+        StateHasChanged();
+        return marcaMovTurnoList;
+    }
+
+    private string GetEmpleado(string idnumero)
+    {
+        return marcaMovTurnos.FirstOrDefault(e => e.idnumero == idnumero).NombreEmpleado;
+    }
+
+    private string GetTurno(string idnumero, DateOnly fecha)
+    {
+        var turnodiario = marcaMovTurnos.FirstOrDefault(e => e.idnumero == idnumero && e.FechaDo == fecha);
+
+        if (turnodiario is not null)
+            return turnodiario.DescTurno;
+
+        return "";
+    }
+    private int GetTurnoId(string idnumero, DateOnly fecha)
+    {
+        var turnodiario = marcaMovTurnos.FirstOrDefault(e => e.idnumero == idnumero && e.FechaDo == fecha);
+
+        if (turnodiario is not null)
+            return turnodiario.turno;
+
+        return -1;
+    }
+
+    private string GetColorTurno(int turnoid)
+    {
+        var colorTurno = listTurnosColor.FirstOrDefault(e => e.Turno == turnoid);
+
+        if (colorTurno is not null)
+            return colorTurno.Color;
+
+        return "#FFFFFF";
+    }
+
+    private int GetMarcasProgramadas(DateOnly fecha)
+    {
+        var prog = listMarcasProgramadas.FirstOrDefault(e => e.FechaDo == fecha);
+
+        if (prog is not null)
+            return prog.CantProgramado;
+
+        return 0;
+    }
+
+    private int GetMarcasAsistencia(DateOnly fecha)
+    {
+        var prog = listMarcasProgramadas.FirstOrDefault(e => e.FechaDo == fecha);
+
+        if (prog is not null)
+            return prog.CantAsistencia;
+
+        return 0;
+    }
+
+    private bool GetEmpleadoAsiste(string idnumero, DateOnly fecha)
+    {
+        var mpt = listMarcasProceso.Where(e => DateOnly.FromDateTime(e.fecha_entra) == fecha && e.hora_entra!="00:00" && e.idnumero==idnumero).ToList();
+
+
+        if (mpt.Count()>0)
+            return true;
+
+        return false;
+    }
+
+}

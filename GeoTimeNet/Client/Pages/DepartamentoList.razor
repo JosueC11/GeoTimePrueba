@@ -1,0 +1,97 @@
+﻿@page "/departamentolist"
+
+@layout MainLayout
+@inject SweetAlertService swal;
+@inject IGeoTimeConnect geoConnect
+@inject NavigationManager NavigationManager
+
+<div class="card">
+    <PageMant Titulo="@Titulo" OnClickAddSelected="OnClickAdd" />
+    <div class="card-body">
+
+        @if (InProcess)
+        {
+            <Spinner ></Spinner>
+        }
+        <Grid @ref="grid" TItem="cDepartamento" class="Color-table custom-table table table-hover table-bordered table-striped "
+              DataProvider="modelDataProvider" AllowFiltering="true" Responsive="true"
+              AllowPaging="false" PageSize="10" PageSizeSelectorVisible="false" PageSizeSelectorItems="@(new int[] {10,50,100,200,500})" 
+              PaginationItemsTextFormat="{0} - {1} of {2} items" ItemsPerPageText="" 
+              HeaderRowCssClass="custom-header border-bottom-0"
+              FiltersRowCssClass="custom-filter text-white border-bottom-0">
+            
+            <GridColumn TItem="cDepartamento" HeaderText="Id" PropertyName="IDDEPART" FilterTextboxWidth="100">
+                @context.IDDEPART
+            </GridColumn>
+            <GridColumn TItem="cDepartamento" HeaderText="Descripción" PropertyName="DESCRIPCION">
+                @context.DESCRIPCION
+            </GridColumn>
+          
+            <GridColumn TItem="cDepartamento" HeaderText="Seleccionar" PropertyName="selec" Filterable="false">
+                <Button Color="ButtonColor.Secondary" @onclick="@((e)=> OnSelect(e, @context.IDDEPART))" Class="btn btn-light rounded-circle">
+                    <Icon Name="IconName.PencilFill" Size="IconSize.x5" />
+                </Button>
+                <Button Color="ButtonColor.Danger" @onclick="@((e)=> OnDelete(e, @context.IDDEPART))" Class="btn btn-danger rounded-circle">
+                    <Icon Name="IconName.Trash" Size="IconSize.x5" />
+                </Button>
+            </GridColumn>
+        </Grid>
+    </div>
+</div>
+
+@code {
+
+    BlazorBootstrap.Grid<cDepartamento> grid;
+    private IEnumerable<cDepartamento> departamento;
+    private string Titulo = "Departamentos";
+    private string UrlRetorno = "/principal";
+    private bool InProcess = true;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+    private async Task<GridDataProviderResult<cDepartamento>> modelDataProvider(GridDataProviderRequest<cDepartamento> request)
+    {
+        if (departamento is null)
+            departamento = await GetDepartamento();
+
+
+        return await Task.FromResult(request.ApplyTo(departamento));
+    }
+
+    private async Task<IEnumerable<cDepartamento>> GetDepartamento()
+    {
+        List<cDepartamento> departamentos = new();
+        try
+        {
+            departamentos = (await geoConnect.GetDepartamento()).ToList();
+
+        }
+        catch (Exception e)
+        {
+            await swal.FireAsync("Error", "Al cargar los departamentos." + e.Message, SweetAlertIcon.Error);
+        }
+        
+        InProcess = false;
+        StateHasChanged();
+        return departamentos;
+    }
+
+    private async Task OnClickAdd()
+    {
+        NavigationManager.NavigateTo("/departamentodetalle/0/1");
+    }
+
+    protected async void OnSelect(MouseEventArgs mouseEventArgs, string id)
+    {
+        NavigationManager.NavigateTo($"/departamentodetalle/{id}/2");
+
+    }
+
+    protected async void OnDelete(MouseEventArgs mouseEventArgs, string id)
+    {
+        NavigationManager.NavigateTo($"/departamentodetalle/{id}/3");
+    }
+}

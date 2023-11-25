@@ -1,0 +1,309 @@
+﻿@page "/accionpersonaldetalle/{Id:long}/{Modo:int}"
+
+@layout MainLayout
+
+@inject SweetAlertService swal;
+@inject IGeoTimeConnect geoConnect
+@inject NavigationManager NavigationManager
+@inject LoginState loginState;
+
+<div class="card">
+
+    <PageReturn Titulo="@Titulo" UrlRetorno="@UrlRetorno" />
+
+    <div class="card-body">
+
+
+
+        @if (accionPersonal is not null)
+        {
+            <EditForm Model="@accionPersonal" OnSubmit="GuardarCambios">
+
+                <div class="input-group rounded-border">
+                    <div class="row">
+                        <label class="align-content-between lbl-xs">
+                            Id Registro
+                        </label>
+                    </div>
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <InputNumber class="form-control br8 rounded-border"
+                                   placeholder="Id de Incidencia" id="idincidencia"
+                                   Disabled="true"
+                        @bind-Value="accionPersonal.IdRegistro" />
+                    </div>
+                </div>
+
+                <div class="input-group rounded-border">
+                    <div class="row">
+                        <label class="align-content-between lbl-xs">
+                            Incidencia
+                        </label>
+                    </div>
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <InputSelect class="form-control form-control selectpicker show-menu-arrow "
+                                     data-live-search="true"
+                                     style="font-size:medium"
+                                     disabled="@soloLectura"
+                        @bind-Value=IdIncidenciaJustifica>
+
+                            @if (listIncidencias is not null)
+                            {
+                                if (listIncidencias.Count() > 0)
+                                {
+                                    <option value="0">Seleccione Código de Justificación</option>
+                                    @foreach (var item in listIncidencias)
+                                    {
+                                        <option value=@item.Id>@item.Codigo - @item.Descripcion</option>
+                                    }
+                                }
+
+                            }
+
+
+                        </InputSelect>
+                    </div>
+                </div>
+
+                <div class="input-group rounded-border">
+                    <div class="row">
+                        <label class="align-content-between lbl-xs">
+                            Comentarios
+                        </label>
+                    </div>
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <InputText class="form-control br8 rounded-border"
+                                   maxlength="1024"
+                                   placeholder="Comentarios" id="Comentarios"
+                                   Disabled="true"
+                        @bind-Value="accionPersonal.Comentario" />
+                    </div>
+                </div>
+
+                <div class="input-group rounded-border">
+                    <div class="row">
+                        <label class="align-content-between lbl-xs">
+                            Fecha Inicio
+                        </label>
+                    </div>
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <DateInput TValue="DateOnly" 
+                                   class="form-control br8 rounded-border"
+                                   placeholder="Fecha" id="fecha"
+                                   Disabled="true"
+                        @onfocusout="focusOutFechas"
+                        @bind-Value="fechaInicial" />
+                    </div>
+                </div>
+
+                <div class="input-group rounded-border">
+                    <div class="row">
+                        <label class="align-content-between lbl-xs">
+                            Fecha Final
+                        </label>
+                    </div>
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <DateInput TValue="DateOnly"
+                                   class="form-control br8 rounded-border"
+                                   placeholder="FechaFin" id="fechafin"
+                        @onfocusout="focusOutFechas"
+                        @bind-Value="fechafinal" />
+                    </div>
+                </div>
+
+                <div class="input-group rounded-border">
+                    <div class="row">
+                        <label class="align-content-between lbl-xs">
+                            Días a Justificar
+                        </label>
+                    </div>
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <InputNumber class="form-control br8 rounded-border"
+                                   maxlength="3"
+                                   placeholder="Días a Justificar" id="diasjust"
+                        @bind-Value="CantDias" />
+                    </div>
+                </div>               
+
+               
+                <div class="input-group rounded-border">
+                    <div class="row">
+                        <label class="align-content-between lbl-xs">
+                            Justificación
+                        </label>
+                    </div>
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <InputText class="form-control br8 rounded-border"
+                                   maxlength="2048"
+                                   placeholder="Justificación" id="justificacion"
+                                   Disabled="@soloLectura"
+                        @bind-Value="Justificacion" />
+                    </div>
+                </div>
+
+                <br />
+                <div class="row">
+                    <div class="col">                        
+                        <button type="submit" class="btn btn-primary w-100">
+                            Aceptar
+                            <Icon Name="IconName.Save" />
+                        </button>                        
+                    </div>
+                </div>
+                <br />
+
+            </EditForm>
+
+
+        }
+    </div>
+</div>
+
+@code {
+
+    [Parameter] public long Id { get; set; }
+    [Parameter] public int Modo { get; set; }
+
+
+    private string Titulo = "Acción de Personal";
+    private string UrlRetorno = "/accionPersonallist";
+    private cAccionPersonal accionPersonal = new();
+    private cIncidencia incidencia = new();
+    private IEnumerable<cIncidencia>? listIncidencias;
+    private DateOnly fechaInicial;
+    private DateOnly fechafinal;
+    private int CantDias = 1;
+    private string? DescIncidencia { get; set; }
+    private string? Codigo { get; set; }
+    private bool soloLectura = false;
+    private string? Justificacion;
+    private int IdIncidenciaJustifica;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            listIncidencias = await geoConnect.GetIncidencia();
+            if (listIncidencias.Count() > 0)
+            {
+                listIncidencias = listIncidencias.Where(e => e.Id > 7);
+            }
+            accionPersonal = await geoConnect.GetAccionPersonal(Id);
+            incidencia = await geoConnect.GetIncidencia(accionPersonal.IdIncidencia);
+            fechaInicial = DateOnly.FromDateTime(accionPersonal.Inicio);
+            fechafinal = DateOnly.FromDateTime(accionPersonal.Fin);
+            Justificacion = accionPersonal.Comentario;
+            IdIncidenciaJustifica = accionPersonal.IdIncidencia;
+            CantDias = accionPersonal.Dias;
+
+        }
+        catch(Exception e)
+        {
+            await swal.FireAsync("Error", e.Message, SweetAlertIcon.Error);
+        }
+        StateHasChanged();
+    }
+
+    private async Task GuardarCambios()
+    {
+        try
+        {
+            if (await Validaciones())
+            {
+                List<cAccionPersonal> listAccionPersonal = new();
+
+                cAccionPersonal accionPer = new cAccionPersonal
+                    {
+                        IdRegistro = accionPersonal.IdRegistro,
+                        IdPlanilla = loginState.Empleado.IdPlanilla,
+                        IdNumero = loginState.Empleado.IdNumero,
+                        Inicio = DateTime.Parse($"{fechaInicial.Year}-{fechaInicial.Month}-{fechaInicial.Day}"),
+                        Fin = DateTime.Parse($"{fechafinal.Year}-{fechafinal.Month}-{fechafinal.Day}"),
+                        IdIncidencia = IdIncidenciaJustifica,
+                        Estado = 'N',
+                        Comentario = Justificacion,
+                        Dias = CantDias,
+                        Dias_Apl = "0,1,2,3,4,5,6,7",
+                        Fecha_Just = DateTime.Now,
+                        Usuario = accionPersonal.Usuario,
+                        SolicitudId = 0
+                    };
+
+                listAccionPersonal.Add(accionPer);
+
+                var respuesta = await geoConnect.Post("AccionPersonalPreJustificacion", listAccionPersonal);
+
+                if (respuesta.Id == "0")
+                {
+                    NavigationManager.NavigateTo(UrlRetorno);
+                }
+                else
+                {
+                    await swal.FireAsync("Error", respuesta.Descripcion, SweetAlertIcon.Error);
+                }
+
+            }
+
+        }
+        catch (Exception e)
+        {
+            await swal.FireAsync("Error", "Ocurrió un error al ejecutar el proceso. Detalle de Error: " + e.Message, SweetAlertIcon.Error);
+        }
+    }
+
+    private async Task<bool> Validaciones()
+    {
+        var Inicio = DateTime.Parse($"{fechaInicial.Year}-{fechaInicial.Month}-{fechaInicial.Day}");
+        var Fin = DateTime.Parse($"{fechafinal.Year}-{fechafinal.Month}-{fechafinal.Day}");
+
+        var dias = (Fin - Inicio).Days;
+
+        dias += 1;
+
+        if (Inicio > Fin)
+        {
+            await swal.FireAsync("Atención", "La fecha de Inicio no puede ser mayor que la fecha final.", SweetAlertIcon.Info);
+            return false;
+        }
+
+        if (CantDias<=0)
+        {
+            await swal.FireAsync("Atención", "La cantidad de días a justificar debe ser Mayor que 0.", SweetAlertIcon.Info);
+            return false;
+        }
+        else
+        {
+            if (CantDias > dias)
+            {
+                await swal.FireAsync("Atención", "La cantidad de días indicado no corresponde a la cantidad de días que hay en el rango de fechas seleccionado.", SweetAlertIcon.Info);
+                return false;
+            }
+        }
+
+        if (IdIncidenciaJustifica == 0)
+        {
+            await swal.FireAsync("Atención", "Debe seleccionar un código de justificación.", SweetAlertIcon.Info);
+            return false;
+        }
+
+        if (Justificacion == "" || Justificacion is null)
+        {
+            await swal.FireAsync("Atención", "Debe indicar un comentario en el campo de justificación.", SweetAlertIcon.Info);
+            return false;
+        }
+
+        return true;
+    }
+
+    protected async Task focusOutFechas()
+    {
+        var Inicio = DateTime.Parse($"{fechaInicial.Year}-{fechaInicial.Month}-{fechaInicial.Day}");
+        var Fin = DateTime.Parse($"{fechafinal.Year}-{fechafinal.Month}-{fechafinal.Day}");
+
+        var dias = (Fin - Inicio).Days;
+
+        CantDias = dias + 1;
+        StateHasChanged();
+
+    }
+
+}

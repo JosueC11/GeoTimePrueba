@@ -1,0 +1,458 @@
+﻿@page "/marcasproceso"
+@layout MainLayout
+
+
+@using System.Globalization
+
+@inject SweetAlertService swal;
+@inject IGeoTimeConnect geoConnect
+@inject NavigationManager NavigationManager
+@inject LoginState loginState;
+
+<div class="card">
+    <div class="card-body">
+        @if (InProcess)
+        {
+            <Spinner></Spinner>
+        }
+        <Grid @ref="grid" TItem="cMarcaProcesoExt" class="Color-table custom-table table table-hover table-bordered table-striped "
+              DataProvider="modelDataProvider" AllowFiltering="false" Responsive="true"
+              AllowPaging="false" PageSize="10" PageSizeSelectorVisible="false" PageSizeSelectorItems="@(new int[] {10,50,100,200,500})"
+              PaginationItemsTextFormat="{0} - {1} of {2} items" ItemsPerPageText=""
+              HeaderRowCssClass="custom-header border-bottom-0"
+              FiltersRowCssClass="custom-filter text-white border-bottom-0">
+
+            <GridColumn TItem="cMarcaProcesoExt" HeaderText="Fecha" PropertyName="fecha_entra">
+                @context.dia, @context.fecha_entra.ToString("dd-MM-yyyy")
+            </GridColumn>
+            <GridColumn TItem="cMarcaProcesoExt" HeaderText="Entrada" PropertyName="hora_entra" TextAlignment="Alignment.Center"
+                        ColumnClass="@(x =>GetColumcClass(x.MarcaEntraAgregada, x.MarcaEntraModificada))">
+                @context.hora_entra
+            </GridColumn>
+            <GridColumn TItem="cMarcaProcesoExt" HeaderText="Salida" PropertyName="hora_sale" TextAlignment="Alignment.Center"
+                        ColumnClass="@(x =>GetColumcClass(x.MarcaSaleAgregada, x.MarcaSaleModificada))">
+                @context.hora_sale
+            </GridColumn>
+            <GridColumn TItem="cMarcaProcesoExt" HeaderText="Turno" PropertyName="idturno" TextAlignment="Alignment.Center">
+                @context.idturno
+            </GridColumn>
+            <GridColumn TItem="cMarcaProcesoExt" HeaderText="Ordinario" PropertyName="ORDC" TextAlignment="Alignment.Center"
+                        ColumnClass="@(x =>GetColumcClassOrd(x.fecha_entra,x.fecha_sale, x.hora_entra,x.hora_sale,(int)x.idturno))">
+                @context.ORDC
+            </GridColumn>
+            <GridColumn TItem="cMarcaProcesoExt" HeaderText="Extras Solicitadas" PropertyName="EXTC" TextAlignment="Alignment.Center">
+                @context.EXTC
+            </GridColumn>
+            <GridColumn TItem="cMarcaProcesoExt" HeaderText="Extras Aprobadas" PropertyName="EXTC" TextAlignment="Alignment.Center">
+                @context.EXTT
+            </GridColumn>
+            <GridColumn TItem="cMarcaProcesoExt" HeaderText="Break" PropertyName="EXTC" TextAlignment="Alignment.Center">
+                @if (@context.CantDescansos > 1)
+                {
+                    <a class="btn btn-link" style="background-color:transparent"
+                        @onclick="@((e)=> OnShowModalDescasos(e,context.fecha_entra,context.fecha_sale))">
+                        <Icon Name="IconName.Search" Size="IconSize.x4" Color="IconColor.Primary" />
+                    </a>
+                }
+                else
+                {
+                    if (@context.CantDescansos == 1)
+                    {
+                        <Tooltip Title="@context.DetDescansos" Color="TooltipColor.Info">
+                            <a class="btn btn-link" style="background-color:transparent"
+                            @onclick="@((e)=> OnShowModalDescasos(e,context.fecha_entra,context.fecha_sale))">
+                                <Icon Name="IconName.CheckCircleFill" Size="IconSize.x4" Color="IconColor.Success" />
+                            </a>
+                        </Tooltip>
+                    }
+                                      
+                }                
+            </GridColumn>
+            <GridColumn TItem="cMarcaProcesoExt" HeaderText="EXD" PropertyName="EXTC" TextAlignment="Alignment.Center">
+                @if (context.TED != "00:00")
+                {
+                    <Icon Name="IconName.ExclamationTriangleFill" Size="IconSize.x4" Color="IconColor.Warning" />
+                }               
+            </GridColumn>
+            <GridColumn TItem="cMarcaProcesoExt" HeaderText="Incidencias" PropertyName="EXTC" TextAlignment="Alignment.Center">
+                
+                @if (context.CantIncidencias > 1)
+                {
+                    <a class="btn btn-link" style="background-color:transparent" 
+                        @onclick="@((e)=> OnShowModalAcciones(e,context.fecha_entra))">
+                        <Icon Name="IconName.Search" Size="IconSize.x4" Color="IconColor.Primary" />
+                    </a>
+
+                }
+                else
+                {
+                    @if (context.CantIncidencias == 1)
+                    {
+                        string strInc = $" {context.DescIncidencia}";
+                        <a class="btn btn-link" style="background-color:transparent"
+                        @onclick="@((e)=> OnShowModalAcciones(e,context.fecha_entra))">
+                            <Icon Name="IconName.CheckCircleFill" Size="IconSize.x4" Color="IconColor.Success" />
+
+                        </a>
+                        @strInc
+                    }
+                    
+                }
+                
+                
+                
+            </GridColumn>
+        </Grid>
+
+
+    </div>
+</div>
+
+<Modal @ref="modalAcciones" Size="ModalSize.Large" IsVerticallyCentered="true" IsScrollable="true" Class="my-modal" />
+<Modal @ref="modalDescansos" Size="ModalSize.Large" IsVerticallyCentered="true" IsScrollable="true" Class="my-modal" />
+
+
+@code {
+    public class cMarcaProcesoExt : cMarcaProceso
+    {
+        public string dia { get; set; }
+        public bool MarcaEntraAgregada { get; set; }
+        public bool MarcaEntraModificada { get; set; }
+        public bool MarcaSaleAgregada { get; set; }
+        public bool MarcaSaleModificada { get; set; }
+        public int CantIncidencias { get; set; }
+        public int CantDescansos { get; set; }
+        public string DescIncidencia { get; set; }
+        public string DetDescansos { get; set; }
+    }
+    BlazorBootstrap.Grid<cMarcaProcesoExt> grid;
+    private IEnumerable<cMarcaProcesoExt> marcas;
+    private bool InProcess = true;
+    //CultureInfo ci = new CultureInfo("Es-Es");
+    CultureInfo ci = CultureInfo.CurrentCulture;
+    private IEnumerable<cTurno> turnos;
+    private IEnumerable<cMarcaAudit> marcasAudit;
+    private IEnumerable<cMarcaDescanso> marcasDescanso;
+    private IEnumerable<cMarcaIncidencia> marcasIncidencias;
+    private IEnumerable<cIncidencia> incidencias;
+    private IEnumerable<cMarcaExtraApb> marcaExtrasApb;
+    private cPhPlanilla planilla;
+    private Modal? modalAcciones = default!;
+    private Modal? modalDescansos = default!;
+
+    private string GetColumcClass(bool agregada, bool modificada)
+    {
+        string colorStyle = "";
+        if (agregada)
+            colorStyle="bg-danger text-black bg-opacity-25 ";
+
+        if (modificada)
+            return "bg-warning text-black bg-opacity-25";
+
+        return colorStyle;
+    }
+
+    private string GetColumcClassOrd(DateTime fechaEntra, DateTime fechaSale, string horaEntra, string horaSale, int turnoId)
+    {
+        var turno = turnos.FirstOrDefault(e => e.IdTurno == turnoId);
+        string entrada = $"{fechaEntra.ToString("yyyy-MM-dd")} {horaEntra}";
+        string salida = $"{fechaSale.ToString("yyyy-MM-dd")} {horaSale}";
+
+        string entradaProgramada = $"{fechaEntra.ToString("yyyy-MM-dd")} {turno.HEntra}";
+        string salidaProgramada = $"{fechaSale.ToString("yyyy-MM-dd")} {turno.HSale}";
+
+        DateTime dEntrada = DateTime.Parse(entrada);
+        DateTime dSalida = DateTime.Parse(salida);
+        DateTime dEntradaProgramada = DateTime.Parse(entradaProgramada);
+        DateTime dSalidaProgramada = DateTime.Parse(salidaProgramada);
+
+        var horasLaboradas = (dSalida - dEntrada).TotalHours;
+        var horasProgramadas = (dSalidaProgramada - dEntradaProgramada).TotalHours;     
+
+        var timeSpan = TimeSpan.FromMinutes((dSalida - dEntrada).TotalMinutes);
+        int hh = timeSpan.Hours;
+        int mm = timeSpan.Minutes;
+
+        if (horasLaboradas < 0) return "";
+
+        if (horasLaboradas < horasProgramadas)
+            return "bg-danger text-white";
+
+        return "";
+
+    }
+
+    private string GetTiempoOrdinario(DateTime fechaEntra, DateTime fechaSale, string horaEntra, string horaSale)
+    {
+        string entrada = $"{fechaEntra.ToString("yyyy-MM-dd")} {horaEntra}";
+        string salida = $"{fechaSale.ToString("yyyy-MM-dd")} {horaSale}";
+        DateTime dEntrada = DateTime.Parse(entrada);
+        DateTime dSalida = DateTime.Parse(salida);
+
+        var horasLaboradas = (dSalida - dEntrada).TotalHours;
+
+        if (horasLaboradas < 0) return "";
+
+        var timeSpan = TimeSpan.FromMinutes((dSalida - dEntrada).TotalMinutes);
+        string strHoursLab = $"{Utiles.Right("00" + timeSpan.Hours.ToString(),2)}:{Utiles.Right("00"+timeSpan.Minutes.ToString(),2)}";
+
+        return strHoursLab;
+
+    }
+
+    private int GetDescansos(DateTime fechaEntra, DateTime fechaSale)
+    {
+        if (marcasDescanso is null) return 0;
+
+        var descansos = marcasDescanso.Where(e => e.FECHA >= fechaEntra && e.FECHA <= fechaSale);
+
+        if (descansos is null) return 0;
+
+        return descansos.Count();
+
+    }
+
+    private string GetDetDescansos(DateTime fechaEntra, DateTime fechaSale)
+    {
+        if (marcasDescanso is null) return "";
+
+        var descansos = marcasDescanso.Where(e => e.FECHA >= fechaEntra && e.FECHA <= fechaSale);
+
+        if (descansos is null) return "";
+
+        string strDescansos = "";
+        foreach(var d in descansos)
+        {
+            strDescansos = $"{strDescansos}{d.INICIO_DESC} - {d.FIN_DESC}\n\r";
+        }
+
+        return strDescansos;
+
+    }
+
+    private int GetMarcasIncidencias(DateTime fechaEntra, DateTime fechaSale)
+    {
+        if (marcasIncidencias is null) return 0;
+
+        var marcasIncDiarias = marcasIncidencias.Where(e => e.FECHA >= fechaEntra && e.FECHA <= fechaSale);
+
+        if (marcasIncDiarias is null) return 0;
+
+        return marcasIncDiarias.Count();
+
+    }
+
+    private string GetDescMarcasIncidencias(DateTime fechaEntra, DateTime fechaSale)
+    {
+        if (marcasIncidencias.Count()==0) return "";
+
+        var marcasIncDiarias = marcasIncidencias.Where(e => e.FECHA >= fechaEntra && e.FECHA <= fechaSale);
+
+        if (marcasIncDiarias is null || marcasIncDiarias.Count()==0) return "";
+
+        if (marcasIncDiarias.Count() == 1)
+        {
+            var incidencia = incidencias.FirstOrDefault(e => e.Id == marcasIncDiarias.FirstOrDefault().IDINCIDENCIA);
+
+            if (incidencia is not null)
+                return incidencia.Descripcion;
+            else
+                return "Descripción de incidencia no encontrada.";
+        }
+        else
+            return "...";
+
+    }
+
+    private bool GetMarcaAgregada(DateTime fecha, string hora)
+    {
+        if (marcasAudit is null) return false;
+
+        var marcaAuditoria = marcasAudit.Where(e => e.FECHA_CHG == fecha && e.HORA_CHG == hora
+                                                    && e.HORA_ORIG == "00:00" 
+                                                    && e.HORA_CHG != "00:00");
+
+        if (marcaAuditoria.Count()==0) return false;
+
+        return true;
+
+    }
+
+    private bool GetMarcaModificada(DateTime fecha, string hora)
+    {
+        if (marcasAudit is null) return false;
+
+        var marcaAuditoria = marcasAudit.Where(e => e.FECHA_CHG == fecha && e.HORA_CHG == hora
+                                                    && e.HORA_ORIG != "00:00"
+                                                    && e.HORA_CHG != "00:00");
+
+        if (marcaAuditoria.Count() == 0) return false;
+
+        return true;
+
+    }
+
+    private string GetHorasExtrasSolicitadas(DateTime fechaEntra)
+    {
+        if (marcaExtrasApb is null) return "";
+
+        var marcasExtraDiario = marcaExtrasApb.Where(e => e.fecha == fechaEntra);
+
+        if (marcasExtraDiario is null) return "";
+
+        if (marcasExtraDiario.Count() >0)
+        {
+            return marcasExtraDiario.FirstOrDefault().cantidad;
+        }
+        else
+            return "";
+
+    }
+
+    private string GetHorasExtrasAprobadas(DateTime fechaEntra)
+    {
+        if (marcaExtrasApb is null) return "";
+
+        var nivelAutorizacion = planilla.nivel_aprob_ext is null ? 1 : planilla.nivel_aprob_ext;
+
+        var marcasExtraDiario = marcaExtrasApb.Where(e => e.fecha == fechaEntra);
+
+        if (marcasExtraDiario is null) return "";
+
+        if (marcasExtraDiario.Count() > 0)
+        {
+            cMarcaExtraApb extraAprobada = null;
+            string cantidad = "";
+            switch (nivelAutorizacion)
+            {
+                case 1:
+                    extraAprobada = marcasExtraDiario.FirstOrDefault(e => e.aprob_nivel1 == 'T');
+                    break;
+                case 2:
+                    extraAprobada = marcasExtraDiario.FirstOrDefault(e => e.aprob_nivel2 == 'T');
+                    break;
+                case 3: 
+                    extraAprobada = marcasExtraDiario.FirstOrDefault(e => e.aprob_nivel3 == 'T');
+                    break;
+            }
+
+            if (extraAprobada is not null)
+            {
+                switch (nivelAutorizacion)
+                {
+                    case 1:
+                        cantidad = extraAprobada.cantidad_aprob_nivel1;
+                        break;
+                    case 2:
+                        cantidad = extraAprobada.cantidad_aprob_nivel2;
+                        break;
+                    case 3:
+                        cantidad = extraAprobada.cantidad_aprob_nivel3;
+                        break;
+                }
+            }
+            return cantidad;
+        }
+        else
+            return "";
+
+    }
+
+    private async Task<GridDataProviderResult<cMarcaProcesoExt>> modelDataProvider(GridDataProviderRequest<cMarcaProcesoExt> request)
+    {
+
+        if (marcas is null) // pull sitios only one time for client-side filtering, sorting, and paging
+            marcas = await GetMarcas(); // call a service or an API to pull the sitios
+
+
+        return await Task.FromResult(request.ApplyTo(marcas));
+    }
+
+    private async Task<IEnumerable<cMarcaProcesoExt>> GetMarcas()
+    {
+        InProcess = true;
+        List<cMarcaProcesoExt> listMarcas = new();
+
+        turnos = await geoConnect.GetTurno();
+        marcasAudit = await geoConnect.GetMarcaAudit(loginState.Empleado.IdNumero, DateTime.Now.ToString("yyyyMMdd"),loginState.Empleado.IdPlanilla);
+        marcasDescanso = await geoConnect.GetMarcaDescanso(loginState.Empleado.IdNumero, DateTime.Now.ToString("yyyyMMdd"), loginState.Empleado.IdPlanilla);
+        marcasIncidencias = await geoConnect.GetMarcaIncidencia(loginState.Empleado.IdNumero, DateTime.Now.ToString("yyyyMMdd"), loginState.Empleado.IdPlanilla);
+        incidencias = await geoConnect.GetIncidencia();
+        marcaExtrasApb = await geoConnect.GetMarcaExtraApb(loginState.Empleado.IdNumero, DateTime.Now.ToString("yyyyMMdd"), loginState.Empleado.IdPlanilla, true);
+        planilla = await geoConnect.GetPhPlanilla(loginState.Empleado.IdPlanilla);
+        try
+        {
+            listMarcas = (from mp in await geoConnect.GetMarcaProceso(loginState.Empleado.IdNumero, DateTime.Now.ToString("yyyyMMdd"))
+                          select new cMarcaProcesoExt
+                              {
+                                  dia = ci.DateTimeFormat.GetDayName(mp.fecha_entra.DayOfWeek),
+                                  fecha_entra = mp.fecha_entra,
+                                  fecha_sale = mp.fecha_sale,
+                                  hora_entra = mp.hora_entra,
+                                  hora_sale = mp.hora_sale,
+                                  idturno = mp.idturno,
+                                  ORDC=GetTiempoOrdinario(mp.fecha_entra,mp.fecha_sale,mp.hora_entra,mp.hora_sale),
+                                  CantDescansos = GetDescansos(mp.fecha_entra, mp.fecha_sale),
+                                  CantIncidencias = GetMarcasIncidencias(mp.fecha_entra, mp.fecha_sale),
+                                  EXTC = GetHorasExtrasSolicitadas(mp.fecha_entra),
+                                  EXTT = GetHorasExtrasAprobadas(mp.fecha_entra),
+                                  DescIncidencia = GetDescMarcasIncidencias(mp.fecha_entra, mp.fecha_sale),
+                                  MarcaEntraAgregada = GetMarcaAgregada(mp.fecha_entra, mp.hora_entra),
+                                  MarcaEntraModificada = GetMarcaModificada(mp.fecha_entra, mp.hora_entra),
+                                  MarcaSaleAgregada = GetMarcaAgregada(mp.fecha_sale, mp.hora_sale),
+                                  MarcaSaleModificada = GetMarcaModificada(mp.fecha_sale, mp.hora_sale),
+                                  DetDescansos = GetDetDescansos(mp.fecha_entra, mp.fecha_sale),
+                                  TED=mp.TED,
+                              }
+                          ).ToList();
+        }
+        catch (Exception e)
+        {
+            await swal.FireAsync("Error", "Error al cargar las marcas." + e.Message, SweetAlertIcon.Info);
+        }
+
+        InProcess = false;
+        StateHasChanged();
+        return listMarcas;
+    }
+
+    //// Metodo que permite mostrar y enviar los parametros necesarios al componente ListaModal
+    protected async Task OnShowModalAcciones(MouseEventArgs mouseEventArgs, DateTime fechaEntra)
+    {
+
+        var parameters = new Dictionary<string, object>();
+        parameters.Add("OnCloseSelected", EventCallback.Factory.Create(this, HideModalAcciones));
+        parameters.Add("fecha", fechaEntra);
+
+        await modalAcciones.ShowAsync<IncidenciasPop>(title: "Acciones del Periodo", parameters: parameters);
+        StateHasChanged();
+    }
+
+    private async Task HideModalAcciones()
+    {
+        await modalAcciones.HideAsync();
+        StateHasChanged();
+
+    }
+
+    //// Metodo que permite mostrar y enviar los parametros necesarios al componente ListaModal
+    protected async Task OnShowModalDescasos(MouseEventArgs mouseEventArgs, DateTime fechaEntra, DateTime fechaSale)
+    {
+
+        var parameters = new Dictionary<string, object>();
+        parameters.Add("OnCloseSelected", EventCallback.Factory.Create(this, HideModalDescansos));
+        parameters.Add("fechaEntra", fechaEntra);
+        parameters.Add("fechaSale", fechaEntra);
+
+        await modalDescansos.ShowAsync<DescansosPop>(title: "Descansos", parameters: parameters);
+        StateHasChanged();
+    }
+
+    private async Task HideModalDescansos()
+    {
+        await modalDescansos.HideAsync();
+        StateHasChanged();
+
+    }
+
+}

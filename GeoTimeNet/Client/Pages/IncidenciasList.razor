@@ -1,0 +1,153 @@
+﻿@page "/incidenciaslist"
+
+@layout MainLayout
+
+@inject SweetAlertService swal;
+@inject IGeoTimeConnect geoConnect
+@inject LoginState loginState;
+@inject NavigationManager NavigationManager
+
+
+<div class="card">
+    <div class="card-header">
+        <div class="row">
+            <div class="col">
+                <h3>@Titulo</h3>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        @if (InProcess)
+        {
+            <Spinner></Spinner>
+        }
+
+        <Grid @ref="grid" TItem="MarcaIncidenciaExt" class="Color-table custom-table table table-hover table-bordered table-striped "
+              DataProvider="modelDataProvider" AllowFiltering="true" AllowSorting="true" Responsive="true"
+              AllowPaging="false" PageSize="10" PageSizeSelectorVisible="false" PageSizeSelectorItems="@(new int[] {10,50,100,200,500})"
+              PaginationItemsTextFormat="{0} - {1} of {2} items" ItemsPerPageText=""
+              RowClass="GetRowClass"
+              HeaderRowCssClass="custom-header border-bottom-0"
+              FiltersRowCssClass="custom-filter text-white border-bottom-0">
+
+            <GridColumn TItem="MarcaIncidenciaExt" HeaderText="Id" PropertyName="INDICE"
+                        TextAlignment="Alignment.End">
+                @context.INDICE
+            </GridColumn>
+            <GridColumn TItem="MarcaIncidenciaExt" HeaderText="Descripcion de Incidencia" PropertyName="IdIncidencia"
+                        TextAlignment="Alignment.Center" FilterTextboxWidth="150">
+                @context.Codigo - @context.DescIncidencia
+            </GridColumn>
+            <GridColumn TItem="MarcaIncidenciaExt" HeaderText="Fecha" PropertyName="FechaDO" 
+                        TextAlignment="Alignment.Center" FilterTextboxWidth="120">
+                @context.FechaDO
+            </GridColumn>
+            <GridColumn TItem="MarcaIncidenciaExt" HeaderText="Fecha Justificación" PropertyName="FechaJustDO" 
+                        TextAlignment="Alignment.Center" FilterTextboxWidth="120">
+                @context.FechaJustDO
+            </GridColumn>
+            <GridColumn TItem="MarcaIncidenciaExt" HeaderText="Comentario" PropertyName="COMENTARIO"
+                        TextAlignment="Alignment.Center" FilterTextboxWidth="80">
+                @context.COMENTARIO
+            </GridColumn>
+@*            <GridColumn TItem="MarcaIncidenciaExt" HeaderText="Estado" PropertyName="ESTADO"
+                        TextAlignment="Alignment.Center">
+                @context.ESTADO
+            </GridColumn>*@
+            <GridColumn TItem="MarcaIncidenciaExt" HeaderText="Acción de Personal" PropertyName="IDACC"
+                        TextAlignment="Alignment.Center" FilterTextboxWidth="70">
+                @context.IDACC
+            </GridColumn>
+            <GridColumn TItem="MarcaIncidenciaExt" HeaderText="Seleccionar" PropertyName="selec" Filterable="false" >
+                @if (context.IDACC == null)
+                {
+                    <Button Color="ButtonColor.Secondary" @onclick="@((e)=> OnSelect(e, @context.INDICE))" Class="btn btn-Secondary rounded-circle">
+                        <Icon Name="IconName.PencilFill" Size="IconSize.x5" />
+                    </Button>
+                }                
+            </GridColumn>
+        </Grid>
+
+    </div>
+</div>
+
+
+@code {
+
+    public class MarcaIncidenciaExt : cMarcaIncidencia
+    {
+        public string DescIncidencia { get; set; }
+        public string Codigo { get; set; }
+        public DateOnly FechaDO { get; set; }
+        public DateOnly? FechaJustDO { get; set; }
+    }
+
+    BlazorBootstrap.Grid<MarcaIncidenciaExt> grid;
+    private IEnumerable<MarcaIncidenciaExt> incidenciassPeriodo;
+    private string Titulo = "Incidencias del Periodo";
+    private bool InProcess = true;
+
+    private string GetRowClass(MarcaIncidenciaExt marca)
+    {
+        if (marca.FECHA_JUST is null)
+            return "table-danger";
+        else
+            return "table-success";
+    }
+
+    private async Task<GridDataProviderResult<MarcaIncidenciaExt>> modelDataProvider(GridDataProviderRequest<MarcaIncidenciaExt> request)
+    {
+
+        if (incidenciassPeriodo is null) // pull sitios only one time for client-side filtering, sorting, and paging
+            incidenciassPeriodo = await GetAccionesPeriodo(); // call a service or an API to pull the sitios
+
+
+        return await Task.FromResult(request.ApplyTo(incidenciassPeriodo));
+    }
+
+    private async Task<IEnumerable<MarcaIncidenciaExt>> GetAccionesPeriodo()
+    {
+
+        List<MarcaIncidenciaExt> listIncidencias = new();
+
+        try
+        {
+            var incidenciasPeriodo = await geoConnect.GetMarcaIncidencia(loginState.Empleado.IdNumero, DateTime.Now.ToString("yyyyMMdd"), loginState.Empleado.IdPlanilla);
+            var incidencias = await geoConnect.GetIncidencia();
+
+            var incs = (from ap in incidenciasPeriodo
+                        join inc in incidencias on ap.IDINCIDENCIA equals inc.Id
+                        select new MarcaIncidenciaExt
+                            {
+                                INDICE = ap.INDICE,
+                                Codigo = inc.Codigo,
+                                DescIncidencia = inc.Descripcion,
+                                FECHA = ap.FECHA,
+                                FECHA_JUST = ap.FECHA_JUST,
+                                FechaDO = DateOnly.FromDateTime(ap.FECHA),
+                                FechaJustDO = ap.FECHA_JUST is null? null : DateOnly.FromDateTime((DateTime)ap.FECHA_JUST),
+                                COMENTARIO = ap.COMENTARIO,
+                                IDACC = ap.IDACC,
+                                ESTADO = ap.ESTADO
+                            }).ToList();
+
+            if (incs.Count > 0)
+                listIncidencias = incs;
+        }
+        catch (Exception e)
+        {
+            await swal.FireAsync("Error", "Error al cargar las marcas." + e.Message, SweetAlertIcon.Info);
+        }
+
+        InProcess = false;
+        StateHasChanged();        
+        return listIncidencias;
+    }
+
+    protected async void OnSelect(MouseEventArgs mouseEventArgs, long id)
+    {
+        NavigationManager.NavigateTo("/incidenciasdetalle/" + id + "/2");
+
+    }
+
+}

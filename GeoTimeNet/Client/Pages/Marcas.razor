@@ -1,0 +1,285 @@
+﻿@page "/marcas"
+@layout MainLayout
+
+@using System;
+@using System.Net;
+
+@inject SweetAlertService swal;
+@inject IGeoTimeConnect geoConnect
+@inject NavigationManager NavigationManager
+@inject LoginState loginState;
+@*@inject MachineInfo machineInfo;*@
+
+<style>
+    .bi-orange {
+        vertical-align: -.125em;
+        fill: white;
+        stroke: darkorange;
+    }
+
+        .bi-orange::before {
+            fill: darkorange;
+            stroke: white;
+            transition: .5s;
+            transform: scale(.9);
+            z-index: -1;
+        }
+
+        .bi-orange:hover {
+            fill: darkorange;
+            stroke: darkorange;
+        }
+
+    .bi-green {
+        vertical-align: -.125em;
+        fill: white;
+        stroke: green;
+    }
+
+        .bi-green::before {
+            fill: green;
+            stroke: white;
+            transition: .5s;
+            transform: scale(.9);
+            z-index: -1;
+        }
+
+        .bi-green:hover {
+            fill: green;
+            stroke: green;
+        }
+
+    .bi-red {
+        vertical-align: -.125em;
+        fill: white;
+        stroke: red;
+    }
+
+        .bi-red::before {
+            fill: red;
+            stroke: white;
+            transition: .5s;
+            transform: scale(.9);
+            z-index: -1;
+        }
+
+        .bi-red:hover {
+            fill: red;
+            stroke: red;
+        }
+
+    }
+</style>
+
+
+<div class="card">
+    <div class="card-header">
+        <div class="row">
+            <div class="col">
+                <h3>Registro de Marcas</h3>
+            </div> 
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col mb-3 d-flex flex-col justify-content-center">
+                <div class="card shadow mb-1 text-center h-100 bi-green" style="width: 10rem;max-width: 10rem;">
+                    <a class="nav-lnk" @onclick="()=>RegistrarMarca(1)">
+                        <svg xmlns="http://www.w3.org/2000/svg" height="90px" width="90px" viewBox="0 0 24 24" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round" class="bi d-block mx-auto mb-1 feather feather-settings">
+                            <path d="M11,7L9.6,8.4l2.6,2.6H2v2h10.2l-2.6,2.6L11,17l5-5L11,7z M20,19h-8v2h8c1.1,0,2-0.9,2-2V5c0-1.1-0.9-2-2-2h-8v2h8V19z" />
+                        </svg>
+                        <span style="font-size:small;color:green">Entrada</span>
+                    </a>
+                </div>
+            </div>
+            <div class="col mb-3 d-flex flex-col justify-content-center">
+                <div class="card shadow mb-1 text-center h-100 bi-orange" style="width: 10rem;max-width: 10rem;">
+                    <a class="nav-lnk" @onclick="()=>RegistrarMarca(3)">
+                        <svg xmlns="http://www.w3.org/2000/svg" height="90px" width="90px" viewBox="0 0 24 24" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round" class="bi d-block mx-auto mb-1 feather feather-settings">
+                            <path d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z" />
+                        </svg>
+                        <span style="font-size:small;color:darkorange">Descanso</span>
+                    </a>
+                </div>
+            </div>
+            <div class="col mb-3 d-flex flex-col justify-content-center">
+                <div class="card shadow mb-1 text-center h-100 bi-red" style="width: 10rem;max-width: 10rem;">
+                    <a class="nav-lnk" @onclick="()=>RegistrarMarca(2)">
+                        <svg xmlns="http://www.w3.org/2000/svg" height="90px" width="90px" viewBox="0 0 24 24" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round" class="bi d-block mx-auto mb-1 feather feather-settings">
+                            <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" />
+                        </svg>
+                        <span style="font-size:small;color:red">Salida</span>
+                    </a>
+                </div>
+            </div>
+            @if (InProcess)
+            {
+                <Spinner></Spinner>
+            }
+            <Grid @ref="grid" TItem="MarcaExt" class="Color-table custom-table table table-hover table-bordered "
+                  DataProvider="modelDataProvider" AllowFiltering="true" Responsive="true"
+                  AllowPaging="false" PageSize="10" PageSizeSelectorVisible="false" PageSizeSelectorItems="@(new int[] {10,50,100,200,500})"
+                  PaginationItemsTextFormat="{0} - {1} of {2} items" ItemsPerPageText="" 
+                  RowClass="GetRowClass"
+                  HeaderRowCssClass="custom-header border-bottom-0"
+                  FiltersRowCssClass="custom-filter text-white border-bottom-0">
+
+                <GridColumn TItem="MarcaExt" HeaderText="Fecha" PropertyName="FechaMarca" HeaderClass="custom-header">
+                    @context.FechaMarca
+                </GridColumn>
+                <GridColumn TItem="MarcaExt" HeaderText="Hora" PropertyName="hora" HeaderClass="custom-header">
+                    @context.hora
+                </GridColumn>
+                <GridColumn TItem="MarcaExt" HeaderText="Tipo" PropertyName="TipoMarca" HeaderClass="custom-header">
+                    @context.TipoMarca
+                </GridColumn>
+            </Grid>
+
+            
+            
+        </div>
+    </div>
+</div>
+@code {
+
+    BlazorBootstrap.Grid<MarcaExt> grid;
+    private IEnumerable<MarcaExt> marcas;
+    private bool InProcess = true;
+    //private string? dirIp = "";
+    private string? hostName = "";
+    public class MarcaExt : cMarca
+    {
+        public DateOnly FechaMarca { get; set; }
+        public string TipoMarca { get; set; }
+    }
+
+    
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+
+
+            hostName = System.Net.Dns.GetHostName();
+            hostName = System.Environment.MachineName;
+            //dirIp = "";
+        }
+        catch (Exception e)
+        {
+            await swal.FireAsync("Error", $"Error al cargar el calendario de trabajo.  Detalle de error: {e.Message}", SweetAlertIcon.Info);
+        }
+
+    }
+    private string GetRowClass(MarcaExt marca)
+    {
+        string color = "table-success";
+        switch (marca.tipo)
+        {
+            case 1: color = "table-success"; break;
+            case 2: color = "table-danger"; break;
+            case 3: color = "table-warning"; break;
+        }
+        return color;
+    }
+
+    private async Task<GridDataProviderResult<MarcaExt>> modelDataProvider(GridDataProviderRequest<MarcaExt> request)
+    {
+
+        if (marcas is null) // pull sitios only one time for client-side filtering, sorting, and paging
+            marcas = await GetMarcas(); // call a service or an API to pull the sitios
+
+
+        return await Task.FromResult(request.ApplyTo(marcas));
+    }
+
+    private async Task<IEnumerable<MarcaExt>> GetMarcas()
+    {
+        InProcess = true;
+        List<MarcaExt> listMarcas = new();
+        try
+        {
+            listMarcas = (from m in await geoConnect.GetMarca(loginState.Empleado.IdNumero, DateTime.Now.ToString("yyyyMMdd"))
+                          select new MarcaExt
+                          {
+                                  registro = m.registro,
+                                  idplanilla = m.idplanilla,
+                                  idnumero = m.idnumero,
+                                  fecha = m.fecha,
+                                  hora = m.hora,
+                                  tipo = m.tipo,
+                                  idterminal = m.idterminal,
+                                  estado = m.estado,
+                                  fecha_reg = m.fecha_reg,
+                                  long_reg = m.long_reg,
+                                  lat_reg = m.lat_reg,
+                                  imagen_reg = m.imagen_reg,
+                                  gps_cell = m.gps_cell,
+                                  img_verif = m.img_verif,
+                                  fecha_hora = m.fecha_hora,
+                                  dir_ip = m.dir_ip,
+                                  TipoMarca = Utiles.GetTipoMarca(m.tipo),
+                                  FechaMarca = DateOnly.FromDateTime(m.fecha),
+
+                              }).OrderByDescending(e => e.fecha_hora)
+                              .ToList();
+
+
+        }
+        catch (Exception e)
+        {
+            await swal.FireAsync("Error", "Error al cargar las marcas", SweetAlertIcon.Info);
+        }
+
+        InProcess = false;
+        StateHasChanged();
+        return listMarcas ;
+    }
+
+    
+    private async void RegistrarMarca(int tipoMarca)
+    {
+        List<cMarcaIn> listMarcaIn = new();
+
+        cMarcaIn marcaIn = new cMarcaIn
+            {
+                idtarjeta = loginState.Empleado.Tarjeta,
+                fecha = DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd")),
+                hora = DateTime.Now.ToString("HH:mm"),
+                idterminal = "",
+                tipo = tipoMarca,
+                idplanilla = loginState.Empleado.IdPlanilla,
+                idnumero = loginState.Empleado.IdNumero,
+                estado = 'N',
+                fecha_reg = DateTime.Now,
+                long_reg = null,
+                lat_reg = null,
+                imagen_reg = null,
+                gps_cell = null,
+                host = "",
+                dir_ip = "",
+            };
+        listMarcaIn.Add(marcaIn);
+
+        var respuesta = await geoConnect.Post("MarcaIn", listMarcaIn);
+        if (respuesta.Id == "0")
+        {
+            await swal.FireAsync("Feliciadades", $"La marca de {Utiles.GetTipoMarca(tipoMarca)} se realizó con exito", SweetAlertIcon.Success);
+            await ActualizarMarcar();
+        }
+        else
+        {
+            await swal.FireAsync("Error", respuesta.Descripcion, SweetAlertIcon.Error);
+        }
+
+    }
+
+    private async Task ActualizarMarcar()
+    {
+        marcas = null;
+        await grid.RefreshDataAsync();
+    }
+
+    
+}

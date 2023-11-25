@@ -1,0 +1,85 @@
+﻿@page "/empleadolist"
+
+@layout MainLayout
+
+
+@inject SweetAlertService swal;
+@inject IGeoTimeConnect geoConnect
+@inject NavigationManager NavigationManager
+
+
+<div class="card">
+
+    <div class="card-body">
+
+        @if (InProcess)
+        {
+            <Spinner ></Spinner>
+        }
+
+        <div>
+            <PageReturn Titulo="@Titulo" UrlRetorno="@UrlRetorno" />
+        </div>
+
+        <Grid @ref="grid" TItem="cEmpleado" class="Color-table custom-table table table-hover table-bordered table-striped " 
+            DataProvider="modelDataProvider" AllowFiltering="true" Responsive="true"
+              AllowPaging="false" PageSize="10" PageSizeSelectorVisible="false" PageSizeSelectorItems="@(new int[] {10,50,100,200,500})" 
+              PaginationItemsTextFormat="{0} - {1} of {2} items" ItemsPerPageText="" 
+              HeaderRowCssClass="custom-header border-bottom-0"
+              FiltersRowCssClass="custom-filter text-white border-bottom-0">
+            
+            <GridColumn TItem="cEmpleado" HeaderText="Id Numero" PropertyName="IdNumero" HeaderClass="custom-header">
+                @context.IdNumero
+            </GridColumn>
+            <GridColumn TItem="cEmpleado" HeaderText="Nombre de Empleado" PropertyName="Nombre" HeaderClass="custom-header">
+                @context.Nombre
+            </GridColumn>
+            <GridColumn TItem="cEmpleado" HeaderText="Identificación" PropertyName="Identificacion" HeaderClass="custom-header">
+                @context.Identificacion
+            </GridColumn>
+        </Grid>
+    </div>
+</div>
+
+@code {
+
+    BlazorBootstrap.Grid<cEmpleado> grid;
+    private IEnumerable<cEmpleado> empleado;
+    private string Titulo = "Empleados";
+    private string UrlRetorno = "/";
+    private bool InProcess = true;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+    private async Task<GridDataProviderResult<cEmpleado>> modelDataProvider(GridDataProviderRequest<cEmpleado> request)
+    {
+        if (empleado is null) // pull sitios only one time for client-side filtering, sorting, and paging
+            empleado = await GetEmpleado(); // call a service or an API to pull the sitios
+
+
+        return await Task.FromResult(request.ApplyTo(empleado));
+    }
+
+    /* Metodo para traer los empleados de geotime y validar si esta activo en BYC Labores*/
+    private async Task<IEnumerable<cEmpleado>> GetEmpleado()
+    {
+        List<cEmpleado> empleados=new();
+        try
+        {
+            empleados = (await geoConnect.GetEmpleado()).ToList();
+
+        }
+        catch (Exception e)
+        {
+            await swal.FireAsync("Error", "Al cargar los empleados." + e.Message, SweetAlertIcon.Info);
+        }
+        
+        InProcess = false;
+        StateHasChanged();
+        return empleados;
+    }
+
+}

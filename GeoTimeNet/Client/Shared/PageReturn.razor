@@ -1,0 +1,37 @@
+﻿@inject NavigationManager NavigationManager
+
+<div class="card-header">
+    <div class="row">
+        <div class="col-1 text-start">
+            <button class="btn btn-sm btn-secondary rounded-circle" @onclick="async () => await OnClickRetorno()">
+                <Icon Name="IconName.ArrowLeft" />
+            </button>
+        </div>
+        <div class="col text-center">
+            <h3>@Titulo</h3>
+        </div>
+        <div class="col-1 text-start">
+        </div>
+    </div>
+
+</div>
+
+
+@code {
+    [Parameter]
+    public string Titulo { get; set; }
+
+    [Parameter]
+    public string UrlRetorno { get; set; }
+
+    [Parameter] 
+    public EventCallback<string> OnClickAddSelected { get; set; }
+
+    private async Task OnClickRetorno()
+    {
+        NavigationManager.NavigateTo(UrlRetorno);
+
+    }
+}
+
+

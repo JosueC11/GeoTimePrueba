@@ -1,0 +1,173 @@
+﻿@page "/departamentodetalle/{Id}/{Modo:int}"
+@layout MainLayout
+
+@inject SweetAlertService swal;
+@inject IGeoTimeConnect geoConnect
+@inject NavigationManager NavigationManager
+
+<div class="card rounded-border pretty-box">
+
+    <div class="card-body">
+
+        <div>
+            <PageReturn Titulo="@Titulo" UrlRetorno="@UrlRetorno" />
+        </div>
+
+        @if (departamento is not null)
+        {
+            <EditForm Model="@departamento" OnSubmit="GuardarCambios">
+
+                @if (InProcess)
+                {
+                    <Spinner></Spinner>
+                }
+
+                <div class="input-group rounded-border">
+                    <div class="row">
+                        <label class="align-content-between lbl-xs">
+                            Id de Departamento
+                        </label>
+                    </div>
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <a class="nav-link bg-transparent br8">
+                            <i class="fas fa-user"></i>
+                        </a>
+                        <InputText  class="form-control br8 rounded-border"
+                                placeholder="Id"
+                                readonly="@soloLecturaAdd"
+                            @bind-Value="departamento.IDDEPART"/>
+                    </div>
+                </div>
+
+                <div class="input-group rounded-border">
+                    <div class="row">
+                        <label class="align-content-between lbl-xs">
+                            Descipción
+                        </label>
+                    </div>
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <InputText class="form-control br8 rounded-border"
+                                   maxlength="20"
+                                   placeholder="Descripción" 
+                                   readonly="@soloLectura"
+                               @bind-Value="departamento.DESCRIPCION"/>
+                    </div>
+                </div>
+
+                <br />
+                <div class="row">
+                    <div class="col">
+                        @if (Modo == 3)
+                        {
+                            <button type="submit" class="btn btn-danger w-100">
+                                Eliminar
+                                <Icon Name="IconName.Trash" />
+                            </button>
+                        }
+                        else
+                        {
+                            <button type="submit" class="btn btn-primary w-100" style="background-color:#64b4f7;">
+                                Aceptar
+                                <Icon Name="IconName.Save" />
+                            </button>
+                        }
+                    </div>
+                </div>
+                <br />
+
+            </EditForm>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Id { get; set; }
+    [Parameter] public int Modo { get; set; }
+
+    private string Titulo = "Departamento";
+    private string UrlRetorno = "/departamentolist";
+    private bool InProcess = true;
+    private bool soloLectura = false;
+    private bool soloLecturaAdd = false;
+    cDepartamento departamento = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            soloLectura = Modo == 3;
+            //Modos= 1:Insertar 2:Actualizar 3:Borrar 0:Consulta
+            if (Modo != 1)
+            {
+                soloLecturaAdd = true;
+                departamento = await geoConnect.GetDepartamento(Id);
+            }
+
+        }
+        catch (Exception e)
+        {
+            await swal.FireAsync("Atención", e.Message, SweetAlertIcon.Error);
+        }
+
+
+        InProcess = false;
+        StateHasChanged();
+    }
+
+    private async Task GuardarCambios()
+    {
+        InProcess = true;
+        try
+        {
+            if (await Validaciones())
+            {
+                List<cDepartamento> listaDepartamentos= new();
+                
+                listaDepartamentos.Add(departamento);
+
+                EventResponse respuesta;
+
+                if (Modo==3)
+                    respuesta = await geoConnect.Delete("Departamento", departamento.IDDEPART.ToString());
+                else
+                    respuesta = await geoConnect.Post("Departamento", listaDepartamentos);
+
+
+                if (respuesta.Id == "0")
+                {
+                    NavigationManager.NavigateTo(UrlRetorno);
+                }
+                else
+                {
+                    await swal.FireAsync("Error", respuesta.Descripcion, SweetAlertIcon.Error);
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            await swal.FireAsync("Error", "Ocurrió un error al ejecutar el proceso. Detalle de Error: " + e.Message, SweetAlertIcon.Error);
+        }
+        finally
+        {
+            InProcess = false;
+        }
+    }
+
+    private async Task<bool> Validaciones()
+    {
+        if (departamento.IDDEPART == "" || departamento.IDDEPART is null)
+        {
+            await swal.FireAsync("Atención", "El campo ID es requerido.", SweetAlertIcon.Info);
+            return false;
+        }
+        if (departamento.DESCRIPCION == "" || departamento.DESCRIPCION is null)
+        {
+            await swal.FireAsync("Atención", "La descripción es requerida.", SweetAlertIcon.Info);
+            return false;
+        }
+        return true;
+    }
+
+    
+
+}

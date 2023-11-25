@@ -1,0 +1,129 @@
+﻿@inherits LayoutComponentBase
+
+@using BlazorBootstrap
+@inject NavigationManager NavigationManager
+@inject LoginState loginState
+@inject SweetAlertService swal
+@inject IGeoTimeConnect geoConnect
+
+<div class="bb-page">
+
+    <Sidebar @ref="sidebar"
+             ImageSrc="img/RelojGTBlanco.svg" 
+             Title="Portal del Empleado"
+             DataProvider="SidebarDataProvider" />
+
+    <main>
+        <div class="bb-top-row px-4 d-flex justify-content-between">
+            <div class="row w-100">
+                <div class="col-2">
+                    <div class="row" span="2">
+                        <Icon Name="IconName.List" role="button" @onclick="ToogleSidebar" />
+                    </div>
+                    
+                </div>
+                <div class="col-10 text-end">
+                    <div class="row">
+                        <strong>@loginState.Empleado.Nombre</strong>
+                    </div>
+                    <div class="row">
+                        <strong>@loginState.Empleado.IdNumero</strong>
+                    </div>
+                   
+                </div>
+            </div>
+            
+            
+        </div>
+
+        <article class="content px-4">
+            <div class="py-2">
+                @Body
+            </div>
+        </article>
+    </main>
+
+</div>
+
+
+@code {
+    Sidebar sidebar;
+    IEnumerable<NavItem> navItems;
+
+    private async Task<SidebarDataProviderResult> SidebarDataProvider(SidebarDataProviderRequest request)
+    {
+
+        if (navItems is null)
+            navItems = await GetNavItems();
+
+        return await Task.FromResult(request.ApplyTo(navItems));
+
+
+    }
+
+    private async Task<IEnumerable<NavItem>> GetNavItems()
+    {
+        var licSistema = await geoConnect.GetPortalConfig();
+        string[] listOpciones = new string[] { "0" };
+        List<NavItem> navItemsNew = new();
+
+        var phUsuario = await geoConnect.GetPhUsuario(loginState.Empleado.IdNumero);
+
+        if (licSistema is not null)
+        {
+            listOpciones = licSistema.DATA_01.Split(",");
+        }
+
+        IEnumerable<cPortal_Opcion> portalOpciones = await geoConnect.GetPortalOpcion();
+
+        navItemsNew.Add(new NavItem { Id = "0", Href = "/principal", IconName = IconName.HouseDoorFill, Text = "Inicio" });
+
+        foreach (cPortal_Opcion opcion in portalOpciones.OrderBy(e=>e.ID))
+        {
+            if (opcion.PRINCIPAL)
+            {
+                NavItem itemMenuPrincipal = new NavItem { Id = opcion.ID, 
+                                                            IconName = (IconName) opcion.ICONID, 
+                                                            Text = opcion.MENUTEXT, 
+                                                            IconColor = IconColor.Secondary };
+                navItemsNew.Add(itemMenuPrincipal);
+            }
+            else
+            {
+                NavItem itemMenuSecundario = new NavItem
+                    {
+                        Id = opcion.ID,
+                        Href = opcion.HREF,
+                        IconName = (IconName)opcion.ICONID,
+                        Text = opcion.MENUTEXT,
+                        ParentId = opcion.PARENTID,
+                    };
+                navItemsNew.Add(itemMenuSecundario);
+            }
+
+        }
+
+        navItemsNew = navItemsNew.Where(e => listOpciones.Contains(e.Id) || e.Id=="0").ToList();
+
+        if (phUsuario is null)
+        {
+            navItemsNew = navItemsNew.Where(e => e.Id != "200" && e.Id != "201").ToList();
+        }
+        else
+        {
+            if (phUsuario.ESTADO != 'T')
+            {
+                navItemsNew = navItemsNew.Where(e => e.Id != "200" && e.Id != "201").ToList();
+            }
+        }
+        
+
+        return navItemsNew;
+    }
+
+    private void IrAInicio() => NavigationManager.NavigateTo("/principal");
+
+    private void ToogleSidebar() => sidebar.ToggleSidebar();
+
+
+}

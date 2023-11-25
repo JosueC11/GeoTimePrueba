@@ -1,0 +1,386 @@
+﻿@page "/conceptodetalle/{Id}/{Modo:int}"
+@layout MainLayout
+
+@inject SweetAlertService swal
+@inject IGeoTimeConnect geoConnect
+@inject NavigationManager NavigationManager
+
+<div class="card rounded-border pretty-box">
+
+    <div class="card-body">
+
+        <div>
+            <PageReturn Titulo="@Titulo" UrlRetorno="@UrlRetorno" />
+        </div>
+
+        @if (concepto is not null)
+        {
+            <EditForm Model="@concepto" OnSubmit="GuardarCambios">
+
+                @if (InProcess)
+                {
+                    <Spinner></Spinner>
+                }
+                <br />
+                <div class="input-group rounded-border">
+                    <div class="row">
+                        <label class="align-content-between lbl-xs">
+                            Concepto
+                        </label>
+                    </div>
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <a class="nav-link bg-transparent br8">
+                            <i class="fas fa-user"></i>
+                        </a>
+                        <InputText class="form-control br8 rounded-border"
+                                   maxlength="20"
+                                   placeholder="Concepto"
+                                   readonly="@soloLecturaAdd"
+                                   @bind-Value="concepto.Concepto" />
+                    </div>
+                </div>
+                <div class="input-group rounded-border">
+                    <div class="row">
+                        <label class="align-content-between lbl-xs">
+                            Descipción
+                        </label>
+                    </div>
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <InputText class="form-control br8 rounded-border"
+                                   maxlength="20"
+                                   placeholder="Descripción"
+                                   readonly="@soloLectura"
+                                   @bind-Value="concepto.Descripcion" />
+                    </div>
+                </div>
+                <div class="input-group w-100">
+                    <label class="align-content-between lbl-xs">
+                        Tipo
+                    </label>
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <select class="form-select br8 rounded-border" @bind="concepto.tipo_j">
+                            @foreach (var option in optionsTipo)
+                            {
+                                <option value="@option.Value">@option.Key</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <div class="input-group w-100">
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <select class="form-select br8 rounded-border" @bind="concepto.tipo_h">
+                            @foreach (var option in optionsTipo)
+                            {
+                                <option value="@option.Value">@option.Key</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <div class="input-group rounded-border">
+                    <div class="row">
+                        <label class="align-content-between lbl-xs">
+                            Columnar Resumen
+                        </label>
+                    </div>
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <input type="number" class="form-control br8 rounded-border"
+                               maxlength="20"
+                               placeholder=""
+                               readonly="@soloLectura"
+                               @bind-value="concepto.columnar" />
+                    </div>
+                </div>
+                <div class="input-group rounded-border">
+                    <div class="row">
+                        <label class="align-content-between lbl-xs">
+                            Factor de Calculo
+                        </label>
+                    </div>
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <input type="number" class="form-control br8 rounded-border"
+                               maxlength="20"
+                               placeholder=""
+                               readonly="@soloLectura"
+                               @bind-value="concepto.factor" />
+                    </div>
+                </div>
+                <div class="input-group rounded-border">
+                    <div class="row">
+                        <label class="align-content-between lbl-xs">
+                            Aproximación
+                        </label>
+                    </div>
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <input type="number" class="form-control br8 rounded-border"
+                               maxlength="20"
+                               placeholder="Aproximación"
+                               readonly="@soloLectura"
+                               @bind-value="concepto.tolerancia" />
+                    </div>
+                </div>
+                <div class="input-group rounded-border">
+                    <div class="row">
+                        <label class="align-content-between lbl-xs">
+                            Equivalencia
+                        </label>
+                    </div>
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <InputText class="form-control br8 rounded-border"
+                                   maxlength="20"
+                                   placeholder="Equivalencia Nómina"
+                                   readonly="@soloLectura"
+                                   @bind-Value="concepto.nominaeq" />
+                    </div>
+                </div>
+                <br />
+                <div class="input-group rounded-border">
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <Switch Label="Columna Tipo Ordinario" @bind-Value="cOrdinario" @onclick="ColumnaTipoOrdinario" />
+                    </div>
+                    <br />
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <Switch Label="Tiempo Autorizado" @bind-Value="cAutorizado" @onclick="TiempoAutorizado" />
+                    </div>
+                    <br />
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <Switch Label="Transferir a Nómina" @bind-Value="cTransferir" @onclick="TransferirNomina" />
+                    </div>
+                    <br />
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <Switch Label="Mostrar en Tiempo Adicional" @bind-Value="cAdicional" @onclick="MostrarTiempoAdicional" />
+                    </div>
+                </div>
+                <br />
+                <div class="row">
+                    <div class="col">
+                        @if (Modo == 3)
+                        {
+                            <button type="submit" class="btn btn-danger w-100">
+                                Eliminar
+                                <Icon Name="IconName.Trash" />
+                            </button>
+                        }
+                        else
+                        {
+                            <button type="submit" class="btn btn-primary w-100" style="background-color:#64b4f7;">
+                                Aceptar
+                                <Icon Name="IconName.Save" />
+                            </button>
+                        }
+                    </div>
+                </div>
+                <br />
+            </EditForm>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Id { get; set; }
+    [Parameter] public int Modo { get; set; }
+
+    private string Titulo = "Concepto";
+    private string UrlRetorno = "/conceptolist";
+    private bool InProcess = true;
+    private bool soloLectura = false;
+    private bool soloLecturaAdd = false;
+    cConcepto concepto = new();
+    private bool cOrdinario = false;
+    private bool cAutorizado = false;
+    private bool cTransferir = false;
+    private bool cAdicional = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            //Modos= 1:Insertar 2:Actualizar 3:Borrar 0:Consulta
+            if (Modo != 1)
+            {
+                soloLecturaAdd = true;
+                concepto = await geoConnect.GetConcepto(Id);
+                CargarChecks();
+            }
+            else
+            {
+                concepto.id = 0;
+                concepto.tipo_j = 0;
+                concepto.tipo_h = 0;
+                concepto.ordinario = 'F';
+                concepto.autorizado = 'F';
+                concepto.transferir = 'F';
+                concepto.adicional = 'F';
+            }
+        }
+        catch (Exception e)
+        {
+            await swal.FireAsync("Atención", e.Message, SweetAlertIcon.Error);
+        }
+
+        InProcess = false;
+        StateHasChanged();
+    }
+
+    private async Task GuardarCambios()
+    {
+        InProcess = true;
+        try
+        {
+            if (await Validaciones())
+            {
+                List<cConcepto> listaConceptos = new();               
+
+                listaConceptos.Add(concepto);
+
+                EventResponse respuesta;
+
+                if (Modo == 3)
+                {
+                    respuesta = await geoConnect.Delete("Concepto", concepto.Concepto);
+                }
+                else
+                {
+                    respuesta = await geoConnect.Post("Concepto", listaConceptos);
+                }
+
+                if (respuesta.Id == "0")
+                {
+                    NavigationManager.NavigateTo(UrlRetorno);
+                }
+                else
+                {
+                    await swal.FireAsync("Error", respuesta.Descripcion, SweetAlertIcon.Error);
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            await swal.FireAsync("Error", "Ocurrió un error al ejecutar el proceso. Detalle de Error: " + e.Message, SweetAlertIcon.Error);
+        }
+        finally
+        {
+            InProcess = false;
+        }
+    }
+
+    private async Task<bool> Validaciones()
+    {
+        if (concepto.Concepto == "" || concepto.Concepto is null)
+        {
+            await swal.FireAsync("Atención", "El campo Concepto es requerido.", SweetAlertIcon.Info);
+            return false;
+        }
+        if (concepto.Descripcion == "" || concepto.Descripcion is null)
+        {
+            await swal.FireAsync("Atención", "La descripción es requerida.", SweetAlertIcon.Info);
+            return false;
+        }
+        if (concepto.tipo_j == 0)
+        {
+            await swal.FireAsync("Atención", "Tipo 1 es requerido.", SweetAlertIcon.Info);
+            return false;
+        }
+        if (concepto.tipo_h == 0)
+        {
+            await swal.FireAsync("Atención", "Tipo 2 es requerido.", SweetAlertIcon.Info);
+            return false;
+        }
+
+        return true;
+    }
+
+    private void ColumnaTipoOrdinario()
+    {
+        concepto.ordinario = (concepto.ordinario == 'T') ? 'F' : 'T';
+        if (concepto.ordinario == 'T')
+        {
+            cOrdinario = true;
+        }
+        else
+        {
+            cOrdinario = false;
+        }
+    }
+    private void TiempoAutorizado()
+    {
+        concepto.autorizado = (concepto.autorizado == 'T') ? 'F' : 'T';
+        if(concepto.autorizado == 'T')
+        {
+            cAutorizado = true;
+        }
+        else
+        {
+            cAutorizado = false;
+        }
+    }
+    private void TransferirNomina()
+    {
+        concepto.transferir = (concepto.transferir == 'T') ? 'F' : 'T';
+        if (concepto.transferir == 'T')
+        {
+            cTransferir = true;
+        }
+        else
+        {
+            cTransferir = false;
+        }
+    }
+    private void MostrarTiempoAdicional()
+    {
+        concepto.adicional = (concepto.adicional == 'T') ? 'F' : 'T';
+        if (concepto.adicional == 'T')
+        {
+            cAdicional = true;
+        }
+        else
+        {
+            cAdicional = false;
+        }
+    }
+
+    private void CargarChecks()
+    {
+        if (concepto.ordinario == 'T')
+        {
+            cOrdinario = true;
+        }
+        else
+        {
+            cOrdinario = false;
+        }
+        if (concepto.autorizado == 'T')
+        {
+            cAutorizado = true;
+        }
+        else
+        {
+            cAutorizado = false;
+        }
+        if (concepto.transferir == 'T')
+        {
+            cTransferir = true;
+        }
+        else
+        {
+            cTransferir = false;
+        }
+        if (concepto.adicional == 'T')
+        {
+            cAdicional = true;
+        }
+        else
+        {
+            cAdicional = false;
+        }      
+    }
+
+    private Dictionary<string, int> optionsTipo = new Dictionary<string, int>
+    {
+        { "Diurno", 1 },
+        { "Mixto", 2 },
+        { "Nocturno", 3 },
+        { "Otro", 4}
+    };
+}

@@ -1,0 +1,190 @@
+﻿@page "/formulaciondetalle/{Id:int}/{Modo:int}"
+@layout MainLayout
+
+@inject SweetAlertService swal;
+@inject IGeoTimeConnect geoConnect
+@inject NavigationManager NavigationManager
+
+<div class="card rounded-border pretty-box">
+
+    <div class="card-body">
+
+        <div>
+            <PageReturn Titulo="@Titulo" UrlRetorno="@UrlRetorno" />
+        </div>
+
+        @if (formulacion is not null)
+        {
+            <EditForm Model="@formulacion" OnSubmit="GuardarCambios">
+
+                @if (InProcess)
+                {
+                    <Spinner></Spinner>
+                }
+
+               @*  <div class="input-group rounded-border">
+                    <div class="row">
+                        <label class="align-content-between lbl-xs">
+                            ID
+                        </label>
+                    </div>
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <a class="nav-link bg-transparent br8">
+                            <i class="fas fa-user"></i>
+                        </a>
+                        <InputNumber  class="form-control br8 rounded-border"
+                                   placeholder="Id" 
+                                   readonly
+                               @bind-Value="formulacion.ID"/>
+                    </div>
+                </div> *@
+
+                <div class="input-group rounded-border">
+                    <div class="row">
+                        <label class="align-content-between lbl-xs">
+                            Descipción
+                        </label>
+                    </div>
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <InputText class="form-control br8 rounded-border"
+                                   maxlength="20"
+                                   placeholder="Descripción" 
+                                   readonly="@soloLectura"
+                               @bind-Value="formulacion.DESCRIPCION"/>
+                    </div>
+                </div>
+
+                <div class="input-group rounded-border">
+                    <div class="row">
+                        <label class="align-content-between lbl-xs">
+                            Fórmula
+                        </label>
+                    </div>
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <InputText class="form-control br8 rounded-border"
+                                   maxlength="20"
+                                   placeholder="Fórmula"
+                                   readonly="@soloLectura"
+                        @bind-Value="formulacion.FORMULA" />
+                    </div>
+                </div>
+
+                <br />
+                <div class="row">
+                    <div class="col">
+                        @if (Modo == 3)
+                        {
+                            <button type="submit" class="btn btn-danger w-100">
+                                Eliminar
+                                <Icon Name="IconName.Trash" />
+                            </button>
+                        }
+                        else
+                        {
+                            <button type="submit" class="btn btn-primary w-100" style="background-color:#64b4f7;">
+                                Aceptar
+                                <Icon Name="IconName.Save" />
+                            </button>
+                        }
+                    </div>
+                </div>
+                <br />
+
+            </EditForm>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public int Id { get; set; }
+    [Parameter] public int Modo { get; set; }
+
+    private string Titulo = "Fórmulas";
+    private string UrlRetorno = "/formulacionlist";
+    private bool InProcess = true;
+    private bool soloLectura = false;
+
+
+    cPhFormulacion formulacion = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            soloLectura = Modo == 3;
+            //Modos= 1:Insertar 2:Actualizar 3:Borrar 0:Consulta
+            if (Modo != 1)
+            {
+                formulacion = await geoConnect.GetPhFormulacion(Id);
+            }
+
+        }
+        catch (Exception e)
+        {
+            await swal.FireAsync("Atención", e.Message, SweetAlertIcon.Error);
+        }
+
+
+        InProcess = false;
+        StateHasChanged();
+    }
+
+    private async Task GuardarCambios()
+    {
+        InProcess = true;
+        try
+        {
+            if (await Validaciones())
+            {
+                List<cPhFormulacion> listaPhFormulacion= new();
+                
+                listaPhFormulacion.Add(formulacion);
+
+                EventResponse respuesta;
+
+                if (Modo==3)
+                    respuesta = await geoConnect.Delete("PhFormulacion", formulacion.ID.ToString());
+                else
+                    respuesta = await geoConnect.Post("PhFormulacion", listaPhFormulacion);
+
+
+                if (respuesta.Id == "0")
+                {
+                    NavigationManager.NavigateTo(UrlRetorno);
+                }
+                else
+                {
+                    await swal.FireAsync("Error", respuesta.Descripcion, SweetAlertIcon.Error);
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            await swal.FireAsync("Error", "Ocurrió un error al ejecutar el proceso. Detalle de Error: " + e.Message, SweetAlertIcon.Error);
+        }
+        finally
+        {
+            InProcess = false;
+        }
+    }
+
+    private async Task<bool> Validaciones()
+    {
+        if (formulacion.DESCRIPCION == "" || formulacion.DESCRIPCION is null)
+        {
+            await swal.FireAsync("Atención", "La descripción es requerida", SweetAlertIcon.Info);
+            return false;
+        }
+
+        if (formulacion.FORMULA == "" || formulacion.FORMULA is null)
+        {
+            await swal.FireAsync("Atención", "La fórmula es requerida", SweetAlertIcon.Info);
+            return false;
+        }
+
+        return true;
+    }
+
+    
+
+}

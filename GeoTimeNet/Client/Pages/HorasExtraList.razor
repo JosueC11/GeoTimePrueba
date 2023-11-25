@@ -1,0 +1,231 @@
+﻿@page "/horasextralist"
+
+@layout MainLayout
+
+
+@inject SweetAlertService swal;
+@inject IGeoTimeConnect geoConnect
+@inject NavigationManager NavigationManager
+@inject LoginState loginState;
+
+
+<div class="card">
+    <PageMant Titulo="@Titulo" OnClickAddSelected="OnClickAdd" />
+
+    <div class="card-body">
+
+        @if (InProcess)
+        {
+            <Spinner ></Spinner>
+        }
+
+        <Grid @ref="grid" TItem="MarcasExtrasApbExt" class="Color-table custom-table table table-hover table-bordered table-striped "
+              DataProvider="modelDataProvider" AllowFiltering="true" Responsive="true"
+              AllowPaging="false" PageSize="10" PageSizeSelectorVisible="false" PageSizeSelectorItems="@(new int[] {10,50,100,200,500})" 
+              PaginationItemsTextFormat="{0} - {1} of {2} items" ItemsPerPageText=""
+              HeaderRowCssClass="custom-header border-bottom-0"
+              FiltersRowCssClass="custom-filter text-white border-bottom-0">
+
+            <GridColumn TItem="MarcasExtrasApbExt" HeaderText="Id de Registro" PropertyName="idregistro" HeaderClass="custom-header">
+                @context.idregistro
+            </GridColumn>
+            <GridColumn TItem="MarcasExtrasApbExt" HeaderText="Fecha Solicitud" PropertyName="FechaDo" HeaderClass="custom-header">
+                @context.FechaDo
+            </GridColumn>
+            <GridColumn TItem="MarcasExtrasApbExt" HeaderText="Hora" PropertyName="hora" HeaderClass="custom-header">
+                @context.hora
+            </GridColumn>
+            <GridColumn TItem="MarcasExtrasApbExt" HeaderText="Cantidad Solicitada" PropertyName="cantidad" HeaderClass="custom-header">
+                @context.cantidad
+            </GridColumn>
+            <GridColumn TItem="MarcasExtrasApbExt" HeaderText="Cantidad Aprobada" PropertyName="CantHorasAprobadas" HeaderClass="custom-header">
+                @context.CantHorasAprobadas
+            </GridColumn>
+            <GridColumn TItem="MarcasExtrasApbExt" HeaderText="Centro Costo" PropertyName="ccosto" HeaderClass="custom-header">
+                @context.ccosto
+            </GridColumn>
+            <GridColumn TItem="MarcasExtrasApbExt" HeaderText="Comentarios" PropertyName="comentario" HeaderClass="custom-header">
+                @context.comentario
+            </GridColumn>
+            <GridColumn TItem="MarcasExtrasApbExt" HeaderText="Comentarios Autorizador" PropertyName="ComentarioAutorizador" HeaderClass="custom-header">
+                @context.ComentarioAutorizador
+            </GridColumn>
+            
+            <GridColumn TItem="MarcasExtrasApbExt" HeaderText="Seleccionar" PropertyName="selec" Filterable="false" Class="btn btn-light rounded-circle">
+                <Button Color="ButtonColor.Secondary" @onclick="@((e)=> OnSelect(e, @context.idregistro))" Disabled="@context.Aprobado">
+                    <Icon Name="IconName.PencilFill" Size="IconSize.x5"/>
+                </Button>              
+            </GridColumn>
+        </Grid>
+    </div>
+</div>
+
+@code {
+
+    BlazorBootstrap.Grid<MarcasExtrasApbExt> grid;
+    private IEnumerable<MarcasExtrasApbExt> marcaExtraApbs;
+    private string Titulo = "Solicitud de Horas Extras";
+    private bool InProcess = true;
+    private cPhPlanilla planilla;
+
+    public class MarcasExtrasApbExt:cMarcaExtraApb{
+        public DateOnly FechaDo { get; set; }
+        public string DescEstado { get; set; }
+        public bool Aprobado { get; set; }
+        public string CantHorasAprobadas { get; set; }
+        public string ComentarioAutorizador { get; set; }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+    private async Task<GridDataProviderResult<MarcasExtrasApbExt>> modelDataProvider(GridDataProviderRequest<MarcasExtrasApbExt> request)
+    {
+        if (marcaExtraApbs is null) // pull sitios only one time for client-side filtering, sorting, and paging
+            marcaExtraApbs = await GetHorasExtra(); // call a service or an API to pull the sitios
+
+
+        return await Task.FromResult(request.ApplyTo(marcaExtraApbs));
+    }
+
+    /* Metodo para traer los empleados de geotime y validar si esta activo en BYC Labores*/
+    private async Task<IEnumerable<MarcasExtrasApbExt>> GetHorasExtra()
+    {
+        planilla = await geoConnect.GetPhPlanilla(loginState.Empleado.IdPlanilla);
+        List<MarcasExtrasApbExt> marcaExtras = new();
+        try
+        {
+            var imarca = await geoConnect.GetMarcaExtraApb(loginState.Empleado.IdNumero, DateTime.Now.ToString("yyyyMMdd"),loginState.Empleado.IdPlanilla,true);
+            if (imarca is not null)
+                marcaExtras = (from m in imarca
+                               select new MarcasExtrasApbExt
+                               {
+                                   idregistro = m.idregistro,
+                                   idnumero = m.idnumero,
+                                   idplanilla = m.idplanilla,
+                                   fecha = m.fecha,
+                                   FechaDo = DateOnly.FromDateTime(m.fecha),
+                                   estado = m.estado,
+                                   ccosto = m.ccosto,
+                                   comentario = m.comentario,
+                                   hora = m.hora,
+                                   cantidad = m.cantidad,
+                                   DescEstado = "",
+                                   Aprobado = GetHorasExtrasAprobadas(m),
+                                   CantHorasAprobadas = GetCantHorasExtrasAprobadas(m),
+                                   ComentarioAutorizador = GetComentariosAutorizador(m),
+                               }).ToList();
+
+        }
+        catch (Exception e)
+        {
+            await swal.FireAsync("Error", "Error al cargar los registros de horas extra.", SweetAlertIcon.Info);
+        }
+
+        InProcess = false;
+        StateHasChanged();
+        return marcaExtras;
+    }
+
+    private bool GetHorasExtrasAprobadas(cMarcaExtraApb marcaExtra)
+    {
+        var nivelAutorizacion = planilla.nivel_aprob_ext is null ? 1 : planilla.nivel_aprob_ext;
+        bool extraAprobada = false;
+
+        switch (nivelAutorizacion)
+        {
+            case 1:
+                extraAprobada= marcaExtra.aprob_nivel1 == 'T';
+                break;
+            case 2:
+                extraAprobada = marcaExtra.aprob_nivel2 == 'T';
+                break;
+            case 3:
+                extraAprobada = marcaExtra.aprob_nivel3 == 'T';
+                break;
+        }
+
+        return extraAprobada;
+
+    }
+
+    private string GetCantHorasExtrasAprobadas(cMarcaExtraApb marcaExtra)
+    {
+        var nivelAutorizacion = planilla.nivel_aprob_ext is null ? 1 : planilla.nivel_aprob_ext;
+        string extraAprobada = "";
+
+        switch (nivelAutorizacion)
+        {
+            case 1:
+                if (marcaExtra.aprob_nivel1 == 'T') extraAprobada = marcaExtra.cantidad_aprob_nivel1;
+                break;
+            case 2:
+                if (marcaExtra.aprob_nivel2 == 'T') extraAprobada = marcaExtra.cantidad_aprob_nivel2;
+                break;
+            case 3:
+                if (marcaExtra.aprob_nivel3 == 'T') extraAprobada = marcaExtra.cantidad_aprob_nivel3;
+                break;
+        }
+
+        return extraAprobada;
+
+    }
+    private string GetComentariosAutorizador(cMarcaExtraApb marcaExtra)
+    {
+        var nivelAutorizacion = planilla.nivel_aprob_ext is null ? 1 : planilla.nivel_aprob_ext;
+        string comentarioAutorizador = "";
+
+        switch (nivelAutorizacion)
+        {
+            case 1:
+                if (marcaExtra.aprob_nivel1 == 'T') 
+                    comentarioAutorizador = $"N1: {marcaExtra.comentario_aprob_nivel1}";
+                break;
+            case 2:
+                if (marcaExtra.aprob_nivel2 == 'T'){
+                    if (marcaExtra.comentario_aprob_nivel1 != "" && marcaExtra.comentario_aprob_nivel1 is not null)
+                        comentarioAutorizador = $"N1: {marcaExtra.comentario_aprob_nivel2}. ";
+
+                    if (marcaExtra.comentario_aprob_nivel2 != "" && marcaExtra.comentario_aprob_nivel2 is not null)
+                        comentarioAutorizador = $"{comentarioAutorizador}N2: {marcaExtra.comentario_aprob_nivel2}.";
+                }
+                break;
+            case 3:
+                if (marcaExtra.aprob_nivel3 == 'T')
+                {
+                    if (marcaExtra.comentario_aprob_nivel1 != "" && marcaExtra.comentario_aprob_nivel1 is not null)
+                        comentarioAutorizador = $"N1: {marcaExtra.comentario_aprob_nivel2}. ";
+                    
+                    if (marcaExtra.comentario_aprob_nivel2 != "" && marcaExtra.comentario_aprob_nivel2 is not null)
+                        comentarioAutorizador = $"{comentarioAutorizador}N2: {marcaExtra.comentario_aprob_nivel2}. ";
+
+                    if (marcaExtra.comentario_aprob_nivel3 != "" && marcaExtra.comentario_aprob_nivel3 is not null)
+                        comentarioAutorizador = $"{comentarioAutorizador}N3: {marcaExtra.comentario_aprob_nivel3}";
+                }
+                break;
+        }
+
+        return comentarioAutorizador;
+
+    }
+
+    private async Task OnClickAdd()
+    {
+
+        NavigationManager.NavigateTo("/horasextrasdetalle/0/1");
+    }
+
+    protected async void OnSelect(MouseEventArgs mouseEventArgs, long id)
+    {
+        NavigationManager.NavigateTo("/horasextrasdetalle/" + id + "/2");
+
+    }
+
+    protected async void OnDelete(MouseEventArgs mouseEventArgs, long id)
+    {
+        NavigationManager.NavigateTo("/horasextrasdetalle/" + id + "/3");
+    }
+
+}

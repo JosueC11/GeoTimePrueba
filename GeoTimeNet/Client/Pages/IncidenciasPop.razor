@@ -1,0 +1,102 @@
+﻿@page "/incidenciasPop"
+
+@layout MainLayout
+
+@inject SweetAlertService swal;
+@inject IGeoTimeConnect geoConnect
+@inject LoginState loginState;
+
+
+<Grid @ref="grid" TItem="MarcaIncidenciaExt" class="Color-table custom-table table table-hover table-bordered table-striped "
+      DataProvider="modelDataProvider" AllowFiltering="false" Responsive="true"
+      AllowPaging="false" PageSize="10" PageSizeSelectorVisible="false" PageSizeSelectorItems="@(new int[] {10,50,100,200,500})"
+      PaginationItemsTextFormat="{0} - {1} of {2} items" ItemsPerPageText=""
+      HeaderRowCssClass="custom-header border-bottom-0"
+      FiltersRowCssClass="custom-filter text-white border-bottom-0">
+
+    <GridColumn TItem="MarcaIncidenciaExt" HeaderText="Descripcion de Incidencia" PropertyName="IdIncidencia"
+                TextAlignment="Alignment.Center" FilterTextboxWidth="150">
+        @context.Codigo - @context.DescIncidencia
+    </GridColumn>
+    <GridColumn TItem="MarcaIncidenciaExt" HeaderText="Fecha" PropertyName="FechaDO" TextAlignment="Alignment.Center" FilterTextboxWidth="140">
+        @context.FechaDO
+    </GridColumn>
+    <GridColumn TItem="MarcaIncidenciaExt" HeaderText="Comentario" PropertyName="COMENTARIO"
+                TextAlignment="Alignment.Center" FilterTextboxWidth="150">
+        @context.COMENTARIO
+    </GridColumn>
+
+</Grid>
+<div class="d-grid gap-2 d-md-flex justify-content-md-end mt-2">
+    <Button Color="ButtonColor.Primary" Outline="true" @onclick="Close">
+        Cerrar
+        <Icon Name="IconName.DoorOpen" />
+    </Button>
+</div>
+    
+
+
+@code {
+    [Parameter] public EventCallback OnCloseSelected { get; set; }
+    [Parameter] public DateTime fecha { get; set; }
+
+    public class MarcaIncidenciaExt : cMarcaIncidencia
+    {
+        public string DescIncidencia { get; set; }
+        public string Codigo { get; set; }
+        public DateOnly FechaDO { get; set; }
+    }
+
+    BlazorBootstrap.Grid<MarcaIncidenciaExt> grid;
+    private IEnumerable<MarcaIncidenciaExt> incidenciassPeriodo;
+
+
+
+    private async Task<GridDataProviderResult<MarcaIncidenciaExt>> modelDataProvider(GridDataProviderRequest<MarcaIncidenciaExt> request)
+    {
+
+        if (incidenciassPeriodo is null) // pull sitios only one time for client-side filtering, sorting, and paging
+            incidenciassPeriodo = await GetAccionesPeriodo(); // call a service or an API to pull the sitios
+
+
+        return await Task.FromResult(request.ApplyTo(incidenciassPeriodo));
+    }
+
+    private async Task<IEnumerable<MarcaIncidenciaExt>> GetAccionesPeriodo()
+    {
+
+        List<MarcaIncidenciaExt> listIncidencias = new();
+
+        try
+        {
+            var incidenciasPeriodo = await geoConnect.GetMarcaIncidencia(loginState.Empleado.IdNumero, DateTime.Now.ToString("yyyyMMdd"), loginState.Empleado.IdPlanilla);
+            var incidencias = await geoConnect.GetIncidencia();
+
+            var incs = (from ap in incidenciasPeriodo.Where(e => e.FECHA == fecha)
+                            join inc in incidencias on ap.IDINCIDENCIA equals inc.Id
+                            select new MarcaIncidenciaExt
+                            {
+                                INDICE = ap.INDICE,
+                                Codigo = inc.Codigo,
+                                DescIncidencia = inc.Descripcion,
+                                FECHA = ap.FECHA,
+                                FECHA_JUST = ap.FECHA_JUST,
+                                FechaDO = DateOnly.FromDateTime(ap.FECHA),
+                                COMENTARIO = ap.COMENTARIO,
+                                
+                            }).ToList();
+
+            if (incs.Count() > 0)
+                listIncidencias = incs;
+        }
+        catch(Exception e)
+        {
+            await swal.FireAsync("Error", "Error al cargar las marcas." + e.Message, SweetAlertIcon.Info);
+        }
+
+        StateHasChanged();
+        return listIncidencias;
+    }
+
+    protected async void Close() => await OnCloseSelected.InvokeAsync();
+}

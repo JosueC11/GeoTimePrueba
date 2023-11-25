@@ -1,0 +1,87 @@
+﻿@page "/descansospop"
+
+@layout MainLayout
+
+@inject SweetAlertService swal;
+@inject IGeoTimeConnect geoConnect
+@inject LoginState loginState;
+
+
+<Grid @ref="grid" TItem="cMarcaDescanso" class="Color-table custom-table table table-hover table-bordered table-striped "
+      DataProvider="modelDataProvider" AllowFiltering="false" Responsive="true"
+      AllowPaging="false" PageSize="10" PageSizeSelectorVisible="false" PageSizeSelectorItems="@(new int[] {10,50,100,200,500})"
+      PaginationItemsTextFormat="{0} - {1} of {2} items" ItemsPerPageText=""
+      HeaderRowCssClass="custom-header border-bottom-0"
+      FiltersRowCssClass="custom-filter text-white border-bottom-0">
+
+    <GridColumn TItem="cMarcaDescanso" HeaderText="Fecha" PropertyName="FECHA"
+                TextAlignment="Alignment.Center" FilterTextboxWidth="150">
+        @context.FECHA 
+    </GridColumn>
+    <GridColumn TItem="cMarcaDescanso" HeaderText="Inicio" PropertyName="INICIO_DESC" TextAlignment="Alignment.Center" FilterTextboxWidth="140">
+        @context.INICIO_DESC
+    </GridColumn>
+    <GridColumn TItem="cMarcaDescanso" HeaderText="Fin" PropertyName="FIN_DESC" TextAlignment="Alignment.Center" FilterTextboxWidth="140">
+        @context.FIN_DESC
+    </GridColumn>
+
+
+</Grid>
+<div class="d-grid gap-2 d-md-flex justify-content-md-end mt-2">
+    <Button Color="ButtonColor.Primary" Outline="true" @onclick="Close">
+        Cerrar
+        <Icon Name="IconName.DoorOpen" />
+    </Button>
+</div>
+    
+
+
+@code {
+    [Parameter] public EventCallback OnCloseSelected { get; set; }
+    [Parameter] public DateTime fechaEntra { get; set; }
+    [Parameter] public DateTime fechaSale { get; set; }
+
+ 
+    BlazorBootstrap.Grid<cMarcaDescanso> grid;
+    private IEnumerable<cMarcaDescanso> descansosPeriodo;
+
+    private async Task<GridDataProviderResult<cMarcaDescanso>> modelDataProvider(GridDataProviderRequest<cMarcaDescanso> request)
+    {
+
+        if (descansosPeriodo is null) // pull sitios only one time for client-side filtering, sorting, and paging
+            descansosPeriodo = await GetDescansosPeriodo(); // call a service or an API to pull the sitios
+
+
+        return await Task.FromResult(request.ApplyTo(descansosPeriodo));
+    }
+
+    private async Task<IEnumerable<cMarcaDescanso>> GetDescansosPeriodo()
+    {
+
+        List<cMarcaDescanso> listDescansos = new();
+
+        try
+        {
+            var marcasDescanso = await geoConnect.GetMarcaDescanso(loginState.Empleado.IdNumero, DateTime.Now.ToString("yyyyMMdd"), loginState.Empleado.IdPlanilla);
+
+            if (marcasDescanso is not null)
+            {
+                var descansos = marcasDescanso.Where(e => e.FECHA >= fechaEntra && e.FECHA <= fechaSale);
+
+                if (descansos.Count() > 0)
+                    listDescansos = descansos.ToList();
+            }
+
+            
+        }
+        catch(Exception e)
+        {
+            await swal.FireAsync("Error", "Error al cargar las marcas. " + e.Message, SweetAlertIcon.Info);
+        }
+
+        StateHasChanged();
+        return listDescansos;
+    }
+
+    protected async void Close() => await OnCloseSelected.InvokeAsync();
+}

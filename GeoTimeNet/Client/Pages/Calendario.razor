@@ -1,0 +1,265 @@
+﻿@page "/calendario"
+@layout MainLayout
+
+@using System.Globalization
+
+@inject SweetAlertService swal;
+@inject IGeoTimeConnect geoConnect
+@inject NavigationManager NavigationManager
+@inject LoginState loginState;
+
+<div class="card">
+    <div class="card-header">
+        <div class="row">
+            <div class="col-sm-1">
+                <button type="button" class="btn" @onclick="GoToday">
+                    <Icon Name="IconName.Calendar4Range" Size="IconSize.x5" />
+                </button>
+            </div>
+            <div class="col-sm-1">
+                <button type="button" class="btn" @onclick="@(m => ClicMonthNavigate(-1))">
+                    <Icon Name="IconName.ArrowLeft" Size="IconSize.x5" />
+                </button>
+            </div>
+            <div class="col-sm-3 text-center">
+                <label class="h3 text-center">@Mes</label>
+            </div>
+            <div class="col-sm-1">
+                <button type="button" class="btn" @onclick="@(m => ClicMonthNavigate(1))">
+                    <Icon Name="IconName.ArrowRight" Size="IconSize.x5" />
+                </button>
+            </div>
+            <div class="col-sm-6">
+                <select class="form-control" @onchange="(e)=>CambiarVista(e)">
+                    <option value="@DisplayedView.Annual" selected>Vista Mensual</option>
+                    <option value="@DisplayedView.Monthly">Vista Anual</option>
+                </select>
+            </div>   
+        </div>
+    </div>
+    
+    <CalendarContainer DisplayedView="SelectedView" 
+                       TasksList="TasksList.ToArray()"
+                       FirstDate="today"
+                       Style="height:85vh">
+        <AnnualView />
+        <MonthlyView TaskClick="TaskClick"
+                     DayClick="DayClick"
+                     Draggable="false" 
+                     Style="font-size:x-small;font-weight:bold"  />
+    </CalendarContainer>
+
+</div>
+
+@code {
+    string Title { get; set; } = "Calendario de Trabajo";
+    private BlazorCalendar.DisplayedView SelectedView = DisplayedView.Monthly;
+    private List<Tasks> TasksList=new();
+    private string Mes;
+    private DateTime today = DateTime.Today;
+
+    string[] colors = new string[]
+    {
+        "#78ECFF", //azul
+        "#62F733", //verde
+        "#EBEBEB", //gris2
+        "#FFCCF9", //rosado
+        "#5EFCEE", //celeste              
+        "#51FFCF", //verde2
+        "#E8EDFF", //gris        
+        "#FEFFB1", //amarillo
+        "#FFE897", //anaranjado       
+        "#E4FFD1", //verde3,      
+
+    };
+
+    public class TurnoColor
+    {
+        public int Turno { get; set; }
+        public string Color { get; set; }
+    }
+    List<TurnoColor> listTurnosColor = new();
+    CultureInfo ci = new CultureInfo("Es-Es");
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await CargarCalendarioTrabajo();
+            StateHasChanged();
+        }
+        catch (Exception e)
+        {
+            await swal.FireAsync("Error", $"Error al cargar el calendario de trabajo.  Detalle de error: {e.Message}", SweetAlertIcon.Info);
+        }
+
+    }
+
+    private async Task CargarCalendarioTrabajo()
+    {
+
+        try
+        {
+            TasksList = new();
+
+            Mes = $"{ci.DateTimeFormat.GetMonthName(DateTime.Now.Month)} {DateTime.Now.Year}".ToUpper();
+            var periodoVigente = await geoConnect.GetPeriodoVigenteEmpleado(loginState.Empleado.IdNumero, DateTime.Now.ToString("yyyyMMdd"));
+            var turnos = await geoConnect.GetTurno();
+            var turnosAsignados = await geoConnect.GetMarcaMovTurno(loginState.Empleado.IdNumero, DateTime.Now.ToString("yyyyMMdd"));
+
+            var turnosUnicos = from t in turnosAsignados
+                               group t.idnumero by t.turno into gr
+                               select new { TurnoId = gr.Key, Employ = gr.ToList() };
+            int i = 0;
+
+            foreach (var item in turnosUnicos)
+            {
+                TurnoColor tc = new TurnoColor
+                    {
+                        Turno = item.TurnoId,
+                        Color = colors[i],
+                    };
+                listTurnosColor.Add(tc);
+                i++;
+            }
+
+            if (periodoVigente is not null)
+            {
+                DateTime dia = periodoVigente.inicio;
+                int cont = 1;
+
+                while (dia <= periodoVigente.fin)
+                {
+                    var turnoDia = turnosAsignados.FirstOrDefault(e => e.fecha == dia);
+
+                    if (turnoDia is not null)
+                    {
+                        var turno = turnos.FirstOrDefault(e => e.IdTurno == turnoDia.turno);
+                        var tcolor = listTurnosColor.FirstOrDefault(e => e.Turno == turnoDia.turno);
+                        if (turno is not null)
+                        {
+                            TasksList.Add(new Tasks
+                                {
+                                    ID = cont,
+                                    DateStart = dia,
+                                    DateEnd = dia,
+                                    Code = turno.Descripcion,
+                                    Color = tcolor.Color,
+                                    Caption = turno.Descripcion,
+                                    FillStyle = FillStyleEnum.Fill
+                                });
+                            if (SelectedView == DisplayedView.Monthly)
+                            {
+                                cont += 1;
+                                TasksList.Add(new Tasks
+                                    {
+                                        ID = cont,
+                                        DateStart = dia,
+                                        DateEnd = dia,
+                                        Code = $"Entrada: {turno.HEntra}",
+                                        Color = tcolor.Color,
+                                        Caption = turno.Descripcion,
+                                        FillStyle = FillStyleEnum.Fill
+                                    });
+                                cont += 1;
+                                TasksList.Add(new Tasks
+                                    {
+                                        ID = cont,
+                                        DateStart = dia,
+                                        DateEnd = dia,
+                                        Code = $"Salida: {turno.HSale}",
+                                        Color = tcolor.Color,
+                                        Caption = turno.Descripcion,
+                                        FillStyle = FillStyleEnum.Fill
+                                    });
+                            }
+
+                        }
+                        else
+                        {
+                            TasksList.Add(new Tasks
+                                {
+                                    ID = cont,
+                                    DateStart = dia,
+                                    DateEnd = dia,
+                                    Code = "",
+                                    Color = "FFFFFF",
+                                    Caption = "",
+                                    FillStyle = FillStyleEnum.Fill
+                                });
+                        }
+
+                    }
+                    else
+                    {
+                        TasksList.Add(new Tasks
+                            {
+                                ID = cont,
+                                DateStart = dia,
+                                DateEnd = dia,
+                                Code = "",
+                                Color = "FFFFFF",
+                                Caption = "",
+                                FillStyle = FillStyleEnum.Fill
+                            });
+                    }
+
+
+
+                    cont += 1;
+                    dia = dia.AddDays(1);
+                }
+
+                //TasksList = new()
+                //{
+                //    new Tasks { ID = 1, DateStart = DateTime.Parse("2023-08-01"), DateEnd = DateTime.Parse("2023-08-01"), Code = "Turno 13", Color = "#19C319", Caption = "Turno 13",FillStyle = FillStyleEnum.BackwardDiagonal },
+                //    new Tasks { ID = 2, DateStart = DateTime.Parse("2023-08-02"), DateEnd = DateTime.Parse("2023-08-02"), Code = "Turno 12", Color = "#FFD800", Comment="Cambio Actividad", Caption = "Turno 12",FillStyle = FillStyleEnum.ZigZag  },
+                //    new Tasks { ID = 4, DateStart = DateTime.Parse("2023-08-03"), DateEnd = DateTime.Parse("2023-08-12"), Code = "Turno 15", Color = "#2DD7D7",Comment="Pruebas", Caption = "Turno 12",FillStyle=FillStyleEnum.CrossDots } ,
+                //};
+            }
+        }
+        catch (Exception e)
+        {
+            await swal.FireAsync("Error", $"Error al cargar el calendario de trabajo.  Detalle de error: {e.Message}", SweetAlertIcon.Info);
+        }
+    }
+
+    private async Task CambiarVista(ChangeEventArgs e)
+    {
+        string valorAnterior = e.Value.ToString().ToUpper();
+        if (valorAnterior != "MONTHLY")
+            SelectedView = DisplayedView.Monthly;
+        else
+            SelectedView = DisplayedView.Annual;
+
+        await CargarCalendarioTrabajo();
+    }
+
+    private void OutsideCurrentMonthClick(int MonthAdded)
+    {
+        today = today.AddMonths(MonthAdded);
+    }
+
+    private void ClicMonthNavigate(int monthToAdd)
+    {
+        today = today.AddMonths(monthToAdd);
+        Mes = $"{ci.DateTimeFormat.GetMonthName(today.Month)} {today.Year}".ToUpper();
+    }
+
+    private void GoToday()
+    {
+        today = DateTime.Today;
+    }
+
+    private void TaskClick(ClickTaskParameter clickTaskParameter)
+    {
+        string fakeConsole = "ID task(s) :" + string.Join(", ", clickTaskParameter.IDList);
+    }
+
+    private void DayClick(ClickEmptyDayParameter clickEmptyDayParameter)
+    {
+        string fakeConsole = "Empty day :" + clickEmptyDayParameter.Day.ToShortDateString();
+    }
+
+    
+}

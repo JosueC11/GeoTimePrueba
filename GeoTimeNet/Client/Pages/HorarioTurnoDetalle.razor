@@ -1,0 +1,349 @@
+﻿@page "/horarioturnoDetalle/{Id:int}/{Modo:int}"
+@layout MainLayout
+
+@inject SweetAlertService swal;
+@inject IGeoTimeConnect geoConnect
+@inject NavigationManager NavigationManager
+
+
+<div class="card rounded-border pretty-box">
+
+    <div class="card-body">
+
+        <div>
+            <PageReturn Titulo="@Titulo" UrlRetorno="@UrlRetorno" />
+        </div>
+
+        @if (horario is not null)
+        {
+            <EditForm Model="@horario" OnSubmit="GuardarCambios">
+
+        @if (InProcess)
+        {
+            <Spinner></Spinner>
+        }
+
+
+                <div class="row g-3 align-items-center">
+                    <div class="col-auto">
+                        <label class="col-form-label">ID</label>
+                    </div>
+                    <div class="col-auto">
+                        <div class="col-auto" id="btnGroupAddon">
+                            <a class="nav-link bg-transparent br8">
+                                <i class="fas fa-user"></i>
+                            </a>
+                            <InputNumber class="form-control br8 rounded-border"
+                                         placeholder="Horario" id="IDHORARIO"
+                                         readonly="@soloLecturaAdd"
+                            @bind-Value="horario.IDHORARIO" />
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="input-group rounded-border">
+                    <div class="row">
+                        <label class="align-content-between lbl-xs">
+                            Descipción
+                        </label>
+                    </div>
+                    <div class="input-group w-100" id="btnGroupAddon">
+                        <InputText class="form-control br8 rounded-border"
+                                   maxlength="20"
+                                   placeholder="Descripción" id="descripcion"
+                                   readonly="@soloLectura"
+                               @bind-Value="horario.DESCRIPCION"/>
+                    </div>
+                </div>
+                <hr>
+
+                <br />
+
+
+            </EditForm>
+
+            <Grid @ref="grid" TItem="horario_turnoEXT" class="Color-table custom-table table table-hover table-bordered table-striped "
+                  DataProvider="modelDataProvider" AllowFiltering="false" Responsive="true"
+                  AllowPaging="false" PageSize="10" PageSizeSelectorVisible="false" PageSizeSelectorItems="@(new int[] {10,50,100,200,500})"
+                  PaginationItemsTextFormat="{0} - {1} of {2} items" ItemsPerPageText=""
+                  HeaderRowCssClass="custom-header border-bottom-0"
+                  FiltersRowCssClass="custom-filter text-white border-bottom-0">
+
+                <GridColumn TItem="horario_turnoEXT" HeaderText="Día" PropertyName="dia">
+                    @context.dia
+                </GridColumn>
+                <GridColumn TItem="horario_turnoEXT" HeaderText="T1" PropertyName="T_1" HeaderClass="custom-header">
+                    <InputSelect @bind-Value=context.T_1>
+
+                        @foreach (var item in turnos)
+                        {
+                            <option value=@item.IdTurno>@item.IdTurno - @item.Descripcion</option>
+                        }
+                    </InputSelect>
+
+                </GridColumn>
+                <GridColumn TItem="horario_turnoEXT" HeaderText="T2" PropertyName="T_2" HeaderClass="custom-header">
+                    <InputSelect @bind-Value=context.T_2>
+
+                        @foreach (var item in turnos)
+                        {
+                            <option value=@item.IdTurno>@item.IdTurno - @item.Descripcion</option>
+                        }
+                    </InputSelect>
+                </GridColumn>
+                <GridColumn TItem="horario_turnoEXT" HeaderText="T3" PropertyName="T_3" HeaderClass="custom-header">
+                    <InputSelect @bind-Value=context.T_3>
+
+                        @foreach (var item in turnos)
+                        {
+                            <option value=@item.IdTurno>@item.IdTurno - @item.Descripcion</option>
+                        }
+                    </InputSelect>
+                </GridColumn>
+                <GridColumn TItem="horario_turnoEXT" HeaderText="T4" PropertyName="T_4" HeaderClass="custom-header">
+                    <InputSelect @bind-Value=context.T_4>
+
+                        @foreach (var item in turnos)
+                        {
+                            <option value=@item.IdTurno>@item.IdTurno - @item.Descripcion</option>
+                        }
+                    </InputSelect>
+                </GridColumn>
+                <GridColumn TItem="horario_turnoEXT" HeaderText="T5" PropertyName="T_5" HeaderClass="custom-header">
+                    <InputSelect @bind-Value=context.T_5>
+
+                        @foreach (var item in turnos)
+                        {
+                            <option value=@item.IdTurno>@item.IdTurno - @item.Descripcion</option>
+                        }
+                    </InputSelect>
+                </GridColumn>
+            </Grid>
+
+            <br />
+            <EditForm Model="@horario" OnSubmit="GuardarCambios">
+            <div class="row">
+                <div class="col">
+                    @if (Modo == 3)
+                    {
+                        <button type="submit" class="btn btn-danger w-100">
+                            Eliminar
+                            <Icon Name="IconName.Trash" />
+                        </button>
+                    }
+                    else
+                    {
+                        <button type="submit" class="btn btn-primary w-100" style="background-color:#64b4f7;">
+                            Aceptar
+                            <Icon Name="IconName.Save" />
+                        </button>
+                    }
+                </div>
+            </div>
+            </EditForm> 
+        }
+    </div>
+</div>
+
+@code {
+
+    BlazorBootstrap.Grid<horario_turnoEXT> grid;
+    [Parameter] public int Id { get; set; }
+    [Parameter] public int Modo { get; set; }
+    private string Titulo = "Administración de Horarios";
+    private string UrlRetorno = "/horarioturnoList";
+    private bool InProcess = true;
+    private bool soloLectura = false;
+    private bool soloLecturaAdd = false;
+
+    cPhHorario horario = new();
+    private IEnumerable<horario_turnoEXT> horarioTurno;
+    List<cTurno> turnos = new();
+    List<horario_turnoEXT> listaHorarioTurno = new();
+
+
+
+    public class horario_turnoEXT: cPhHorarioTurno
+    {
+        public string dia { get; set; }
+    }
+
+    private async Task<GridDataProviderResult<horario_turnoEXT>> modelDataProvider(GridDataProviderRequest<horario_turnoEXT> request)
+    {
+        if (horarioTurno is null) // pull sitios only one time for client-side filtering, sorting, and paging
+            horarioTurno = await GetHorarioTurno(); // call a service or an API to pull the sitios
+
+        return await Task.FromResult(request.ApplyTo(horarioTurno));
+    }
+
+    /* Metodo para traer los horarios turnos para un nuevo registro o editar de geotime*/
+    private async Task<IEnumerable<horario_turnoEXT>> GetHorarioTurno()
+    {
+        turnos = (await geoConnect.GetTurno()).ToList();
+        string [] dias = { "Domingo", "Lunes","Martes", "Miércoles", "Jueves", "Viernes", "Sábado" };
+        List<horario_turnoEXT> horarioT = new();
+        horario = await geoConnect.GetHorarios(Id);
+
+        try
+        {
+ 
+            if (horario.cPh_HorarioTurno.ToList().Count() > 0)
+            {
+                int d1 = 0;
+                foreach (var item in horario.cPh_HorarioTurno.ToList())
+                {
+                    horario_turnoEXT h = new horario_turnoEXT
+                        {
+                            IDHORARIO = horario.IDHORARIO,
+                            ID_DIA = item.ID_DIA,
+                            dia = dias[d1],
+                            T_1 = item.T_1,
+                            T_2 = item.T_2,
+                            T_3 = item.T_3,
+                            T_4 = item.T_4,
+                            T_5 = item.T_5
+                        };
+                    listaHorarioTurno.Add(h);
+                    d1++;
+                }
+                horarioT = listaHorarioTurno;
+            }
+            else
+            {
+                int d = 1;
+                for (int cont = 0; cont <= 6; cont++)
+                {
+
+                    horario_turnoEXT h = new horario_turnoEXT
+                        {
+                            IDHORARIO = 0,
+                            ID_DIA = d,
+                            dia = dias[cont],
+                            T_1 = 0,
+                            T_2 = 0,
+                            T_3 = 0,
+                            T_4 = 0,
+                            T_5 = 0
+
+                        };
+                    listaHorarioTurno.Add(h);
+                    d++;
+                }
+            }
+
+            horarioT = listaHorarioTurno;
+        }
+        catch (Exception e)
+        {
+            await swal.FireAsync("Error", "Al cargar los horarios turnos." + e.Message, SweetAlertIcon.Info);
+        }
+
+        InProcess = false;
+        StateHasChanged();
+        return horarioT;
+    }
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            soloLectura = Modo == 3;
+            //Modos= 1:Insertar 2:Actualizar 3:Borrar 0:Consulta
+            if (Modo != 1)
+            {
+                soloLecturaAdd = true;
+                horario = await geoConnect.GetHorarios(Id);
+            }
+
+        }
+        catch (Exception e)
+        {
+            await swal.FireAsync("Atención", e.Message, SweetAlertIcon.Error);
+        }
+
+
+        InProcess = false;
+        StateHasChanged();
+    }
+
+
+    private async Task GuardarCambios()
+    {
+        InProcess = true;
+        try
+        {
+            if (await Validaciones())
+            {
+
+                List<cPhHorario> listaPhHorarios = new();
+                List<cPhHorarioTurno> ht = new();
+
+                EventResponse respuesta;
+
+
+                if (Modo==3)
+                {                    
+                    respuesta = await geoConnect.Delete("Horarios", horario.IDHORARIO.ToString());
+                }
+                else
+                {
+                    foreach (var item in horarioTurno.ToList())
+                    {
+                        cPhHorarioTurno h = new cPhHorarioTurno
+                            {
+                                IDHORARIO = horario.IDHORARIO,
+                                ID_DIA = item.ID_DIA,
+                                T_1 = item.T_1,
+                                T_2 = item.T_2,
+                                T_3 = item.T_3,
+                                T_4 = item.T_4,
+                                T_5 = item.T_5
+                            };
+                        ht.Add(h);
+                    }
+
+                    horario.cPh_HorarioTurno = ht;
+                    listaPhHorarios.Add(horario);
+
+                    respuesta = await geoConnect.Post("Horarios", listaPhHorarios);
+                }
+
+                if (respuesta.Id == "0")
+                {
+                    NavigationManager.NavigateTo(UrlRetorno);
+                }
+                else
+                {
+                    await swal.FireAsync("Error", respuesta.Descripcion, SweetAlertIcon.Error);
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            await swal.FireAsync("Error", "Ocurrió un error al ejecutar el proceso. Detalle de Error: " + e.Message, SweetAlertIcon.Error);
+        }
+        finally
+        {
+            InProcess = false;
+        }
+    }
+
+    private async Task<bool> Validaciones()
+    {
+        if (horario.IDHORARIO <= 0)
+        {
+            await swal.FireAsync("Atención", "El ID es requerida", SweetAlertIcon.Info);
+            return false;
+        }
+        if (horario.DESCRIPCION == "" || horario.DESCRIPCION is null )
+        {
+            await swal.FireAsync("Atención", "La descripción es requerida", SweetAlertIcon.Info);
+            return false;
+        }
+
+        return true;
+    }
+
+
+
+}

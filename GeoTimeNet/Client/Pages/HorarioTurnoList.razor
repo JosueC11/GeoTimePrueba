@@ -1,0 +1,111 @@
+﻿@page "/horarioturnoList"
+
+@layout MainLayout
+
+
+@inject SweetAlertService swal;
+@inject IGeoTimeConnect geoConnect
+@inject NavigationManager NavigationManager
+
+
+<div class="card">
+    <PageMant Titulo="@Titulo" OnClickAddSelected="OnClickAdd" />
+    <div class="card-body">
+
+        @if (InProcess)
+        {
+            <Spinner></Spinner>
+        }
+
+        <Grid @ref="grid" TItem="cPhHorario" class="Color-table custom-table table table-hover table-bordered table-striped "
+              DataProvider="modelDataProvider" AllowFiltering="false" Responsive="true"
+              AllowPaging="false" PageSize="10" PageSizeSelectorVisible="false" PageSizeSelectorItems="@(new int[] {10,50,100,200,500})"
+              PaginationItemsTextFormat="{0} - {1} of {2} items" ItemsPerPageText=""
+              HeaderRowCssClass="custom-header border-bottom-0"
+              FiltersRowCssClass="custom-filter text-white border-bottom-0">
+
+            <GridColumn TItem="cPhHorario" HeaderText="Id" PropertyName="IDDEPART" FilterTextboxWidth="100">
+                @context.IDHORARIO
+            </GridColumn>
+            <GridColumn TItem="cPhHorario" HeaderText="Descripción" PropertyName="DESCRIPCION">
+                @context.DESCRIPCION
+            </GridColumn>
+
+            <GridColumn TItem="cPhHorario" HeaderText="Seleccionar" PropertyName="selec" Filterable="false">
+                <Button Color="ButtonColor.Secondary" @onclick="@((e)=> OnSelect(e, @context.IDHORARIO))" Class="btn btn-light rounded-circle">
+                    <Icon Name="IconName.PencilFill" Size="IconSize.x5" />
+                </Button>
+                <Button Color="ButtonColor.Danger" @onclick="@((e)=> OnDelete(e, @context.IDHORARIO))" Class="btn btn-danger rounded-circle">
+                    <Icon Name="IconName.Trash" Size="IconSize.x5" />
+                </Button>
+            </GridColumn>
+        </Grid>
+
+
+
+
+    </div>
+
+</div>
+
+@code {
+
+    BlazorBootstrap.Grid<cPhHorario> grid;
+    private IEnumerable<cPhHorario> horario;
+    private string Titulo = "Administración de Horarios";
+    private string UrlRetorno = "/principal";
+    private bool InProcess = true;
+
+    cTurno turno = new();
+    cPhHorario horarios = new();
+
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+    private async Task<GridDataProviderResult<cPhHorario>> modelDataProvider(GridDataProviderRequest<cPhHorario> request)
+    {
+        if (horario is null)
+            horario = await GetHorario();
+
+
+        return await Task.FromResult(request.ApplyTo(horario));
+    }
+
+    private async Task<IEnumerable<cPhHorario>> GetHorario()
+    {
+        List<cPhHorario> horarios = new();
+        try
+        {
+            horarios = (await geoConnect.GetHorarios()).ToList();
+
+        }
+        catch (Exception e)
+        {
+            await swal.FireAsync("Error", "Al cargar los horarios." + e.Message, SweetAlertIcon.Info);
+        }
+
+        InProcess = false;
+        StateHasChanged();
+        return horarios;
+    }
+
+    private async Task OnClickAdd()
+    {
+        NavigationManager.NavigateTo("/horarioturnoDetalle/0/1");
+    }
+
+    protected async void OnSelect(MouseEventArgs mouseEventArgs, int id)
+    {
+        NavigationManager.NavigateTo($"/horarioturnoDetalle/{id}/2");
+
+    }
+
+    protected async void OnDelete(MouseEventArgs mouseEventArgs, int id)
+    {
+        NavigationManager.NavigateTo($"/horarioturnoDetalle/{id}/3");
+    }
+
+}

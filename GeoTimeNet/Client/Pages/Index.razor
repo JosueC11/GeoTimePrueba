@@ -1,0 +1,226 @@
+﻿@page "/"
+@layout IndexLayout
+
+@implements IDisposable
+@inject SweetAlertService swal
+@inject IGeoTimeConnect geoConnect
+@inject LoginState loginState
+@inject NavigationManager NavigationManager
+
+
+<div class="row">
+    <div class="col-5 h-100 d-flex align-items-center justify-content-center" style="height: 500px">
+        <div>
+            <img src="img/geotime-v2 1.png" style="top:300px" />
+        </div>
+        
+    </div>
+    <div class="col-2 h-100 d-flex align-items-center justify-content-center">
+        <div style="width: 4px;height: 500px;background: #2192FF;top:200px;">
+            <div class="vr justify-content-center"></div>
+        </div>
+    </div>
+   
+    <div class="col-sm-5 h-100 d-flex align-items-center justify-content-center ">
+        <div class="container align-items-center justify-content-center">
+            <br />
+            <br />
+            <div class="row">
+                <div class="col text-center">
+                    <label class="label-roboto20 mb-2">¡Bienvenido!</label>
+                </div>
+            </div>
+            <div class="row w-100">
+                <div class="col text-center">
+                    <label class="label-roboto20 mb-2">Ingresa a tu cuenta</label>
+                </div>
+            </div>
+            <div class="row w-100">
+                <EditForm Model="@login" OnValidSubmit="InciarSesion">
+                    <div class="h-25 d-flex align-items-center justify-content-center mb-3">
+                        <div class="input-group" id="txt-container">
+                            <img src="img/usuario.svg" class="px-1" />
+                            <InputText maxlength="50" placeholder="Usuario" id="usuario"
+                                @onfocusout="BuscarCompanias"
+                            @bind-Value="login.Usuario" @ref="txtUsuario" />
+                        </div>
+                    </div>
+                    <div class="h-25 d-flex align-items-center justify-content-center mb-3">
+                        <div class="input-group" id="txt-container">
+                            <img src="img/Candado.svg" class="px-1" />
+                            <InputText type="password" maxlength="50" placeholder="Password" id="password"
+                            @bind-Value="login.Password" @ref="txtPassword" />
+                        </div>
+                    </div>
+                    @if (companias is not null)
+                    {
+                        @if (companias.Count() > 1)
+                        {
+                            <div class="h-25 d-flex align-items-center justify-content-center mb-3">
+                                <div class="input-group" id="txt-container">
+                                    <img src="img/Compania.svg" class="px-1" />
+
+                                    <InputSelect 
+                                        @bind-Value=login.Compania>
+
+                                        @foreach (var item in companias)
+                                        {
+                                            <option value=@item.idcomp>@item.idcomp</option>
+                                        }
+                                        
+                                    </InputSelect>
+                                </div>
+                            </div>
+                        }
+                    }
+                   
+                    <div class="h-25 d-flex align-items-center justify-content-center">
+                        <div class="input-group" id="btn-principal">
+                            <button type="submit">
+                                Iniciar Sesión
+                            </button>
+                        </div>
+                        
+                    </div>
+                   
+
+                </EditForm>
+                
+                @if (InProcess)
+                {
+                    <Spinner></Spinner>
+                }
+
+            </div>
+        </div>
+     
+
+    </div>
+</div>
+
+@code {
+    Login login = new();
+    InputText txtUsuario = new();
+    InputText txtPassword = new();
+    IEnumerable<cPhCompaniaUsuario> companias;
+    bool InProcess = true;
+    // private List<Generica> listGenerica = new List<Generica> { new Generica { Id = 1, Descripcion = "hola" },
+    //                                                            new Generica { Id = 1, Descripcion = "hola2"}};
+
+    protected override async Task OnInitializedAsync()
+    {
+        loginState.OnChange += StateHasChanged;
+        geoConnect.OnChange += StateHasChanged;
+        InProcess = false;
+    }
+
+    private async Task InciarSesion()
+    {
+        InProcess = true;
+        await BuscarCompanias();
+        if (await Validaciones())
+        {
+            Task task = new Task(() =>
+            {
+                geoConnect.setSchema(login.Compania);
+            });
+
+            task.Start();
+            task.Wait();
+
+            var licSistema = await geoConnect.GetPortalConfig();
+
+            if (licSistema is null)
+            {
+                await swal.FireAsync("Atención", "Por favor verifique que la licencia del Portal de Empleados esté Activa", SweetAlertIcon.Error);
+                InProcess = false;
+                return;
+            }
+            else
+            {
+                if (licSistema.LIC_PORTAL != 'T')
+                {
+                    await swal.FireAsync("Atención", "Por favor verifique que la licencia del Portal de Empleados esté Activa", SweetAlertIcon.Error);
+                    InProcess = false;
+                    return;
+                }
+            }
+            
+
+            cEmpleado empleado = await geoConnect.GetEmpleado(login.Usuario);
+
+            if (empleado is not null)
+            {
+                EventResponse respuesta = await geoConnect.Post("Login", login);
+
+                if (respuesta.Id == "0")
+                {
+                    loginState.SetLogin(empleado);
+                    NavigationManager.NavigateTo("/Principal");
+                }
+                else
+                {
+                    await swal.FireAsync("Atención", respuesta.Descripcion, SweetAlertIcon.Error);
+                }
+
+
+            }
+            else
+            {
+                await swal.FireAsync("Atención", $"Su Id de Empleado {login.Usuario} no se encuentra en la base de datos", SweetAlertIcon.Info);
+            }
+
+
+        }
+        InProcess = false;
+
+    }
+
+    private async Task<bool> Validaciones()
+    {
+        if (login.Usuario == "" || login.Usuario is null)
+        {
+            await Utiles.SetFocus(txtUsuario);
+            await swal.FireAsync("Atención", "Debe indicar el id de usuario", SweetAlertIcon.Info);
+            return false;
+        }
+        if (login.Password == "" || login.Password is null)
+        {
+            await Utiles.SetFocus(txtPassword);
+            await swal.FireAsync("Atención", "Debe indicar la contraseña de ingreso", SweetAlertIcon.Info);
+            return false;
+        }
+        if (login.Compania == "" || login.Compania is null)
+        {
+            await swal.FireAsync("Atención", "No se encontró una companía asociada al usuario.  Por favor verifique.", SweetAlertIcon.Info);
+            return false;
+        }
+        return true;
+    }
+
+    public void Dispose()
+    {
+        loginState.OnChange -= StateHasChanged;
+        geoConnect.OnChange -= StateHasChanged;
+    }
+
+    private async Task BuscarCompanias()
+    {
+        if (login.Usuario=="" || login.Usuario is null)
+        {
+            await Utiles.SetFocus(txtUsuario);
+            return;
+        }
+        companias = await geoConnect.GetPhCompaniaUsuario(login.Usuario);
+
+        if (companias.Count() > 0)
+            login.Compania = companias.FirstOrDefault().idcomp;
+        else
+        {
+            await swal.FireAsync("Atención", "No se encontró la compañía a la que está asociado el usuario.", SweetAlertIcon.Info);
+            await Utiles.SetFocus(txtUsuario);
+            login.Usuario = "";
+        }
+        StateHasChanged();
+    }
+}

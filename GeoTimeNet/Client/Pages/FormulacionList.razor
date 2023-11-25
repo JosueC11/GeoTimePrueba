@@ -1,0 +1,104 @@
+﻿@page "/formulacionlist"
+
+@layout MainLayout
+
+
+@inject SweetAlertService swal;
+@inject IGeoTimeConnect geoConnect
+@inject NavigationManager NavigationManager
+
+
+<div class="card">
+    <PageMant Titulo="@Titulo" OnClickAddSelected="OnClickAdd" />
+    <div class="card-body">
+
+        @if (InProcess)
+        {
+            <Spinner ></Spinner>
+        }
+
+        <Grid @ref="grid" TItem="cPhFormulacion" class="Color-table custom-table table table-hover table-bordered table-striped " 
+            DataProvider="modelDataProvider" AllowFiltering="true" Responsive="true"
+              AllowPaging="false" PageSize="10" PageSizeSelectorVisible="false" PageSizeSelectorItems="@(new int[] {10,50,100,200,500})" 
+              PaginationItemsTextFormat="{0} - {1} of {2} items" ItemsPerPageText="" 
+              HeaderRowCssClass="custom-header border-bottom-0"
+              FiltersRowCssClass="custom-filter text-white border-bottom-0">
+           @*  
+            <GridColumn TItem="cPhFormulacion" HeaderText="Id" PropertyName="ID" HeaderClass="custom-header">
+                @context.ID
+            </GridColumn> *@
+            <GridColumn TItem="cPhFormulacion" HeaderText="Descripción" PropertyName="DESCRIPCION" HeaderClass="custom-header">
+                @context.DESCRIPCION
+            </GridColumn>
+           @*  <GridColumn TItem="cPhFormulacion" HeaderText="Fórmula" PropertyName="FORMULA" HeaderClass="custom-header">
+                @context.FORMULA
+            </GridColumn> *@
+            <GridColumn TItem="cPhFormulacion" HeaderText="Seleccionar" PropertyName="selec" Filterable="false">
+                <Button Color="ButtonColor.Secondary" @onclick="@((e)=> OnSelect(e, @context.ID))" Class="btn btn-light rounded-circle">
+                    <Icon Name="IconName.PencilFill" Size="IconSize.x5" />
+                </Button>
+                <Button Color="ButtonColor.Danger" @onclick="@((e)=> OnDelete(e, @context.ID))" Class="btn btn-danger rounded-circle">
+                    <Icon Name="IconName.Trash" Size="IconSize.x5" />
+                </Button>
+            </GridColumn>
+        </Grid>
+    </div>
+</div>
+
+@code {
+
+    BlazorBootstrap.Grid<cPhFormulacion> grid;
+    private IEnumerable<cPhFormulacion> formulacion;
+    private string Titulo = "Fórmulas";
+    private string UrlRetorno = "/principal";
+    private bool InProcess = true;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+    private async Task<GridDataProviderResult<cPhFormulacion>> modelDataProvider(GridDataProviderRequest<cPhFormulacion> request)
+    {
+        if (formulacion is null) 
+            formulacion = await GetFormulacion(); 
+
+
+        return await Task.FromResult(request.ApplyTo(formulacion));
+    }
+
+    private async Task<IEnumerable<cPhFormulacion>> GetFormulacion()
+    {
+        List<cPhFormulacion> formulaciones=new();
+        try
+        {
+            formulaciones = (await geoConnect.GetPhFormulacion()).ToList();
+
+        }
+        catch (Exception e)
+        {
+            await swal.FireAsync("Error", "Al cargar las fórmulas." + e.Message, SweetAlertIcon.Info);
+        }
+        
+        InProcess = false;
+        StateHasChanged();
+        return formulaciones;
+    }
+
+    private async Task OnClickAdd()
+    {
+        NavigationManager.NavigateTo("/formulaciondetalle/0/1");
+    }
+
+    protected async void OnSelect(MouseEventArgs mouseEventArgs, long id)
+    {
+        NavigationManager.NavigateTo($"/formulaciondetalle/{id}/2");
+
+    }
+
+    protected async void OnDelete(MouseEventArgs mouseEventArgs, long id)
+    {
+        NavigationManager.NavigateTo($"/formulaciondetalle/{id}/3");
+    }
+
+}
